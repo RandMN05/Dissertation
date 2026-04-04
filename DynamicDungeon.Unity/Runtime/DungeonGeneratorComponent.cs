@@ -69,6 +69,22 @@ namespace DynamicDungeon.Unity
         // ── Public API ─────────────────────────────────────────────────────
 
         /// <summary>
+        /// Applies the settings from a saved DungeonLevelData asset and generates
+        /// that exact level. The seed stored in the asset guarantees the same map
+        /// is produced every time.
+        /// </summary>
+        public void LoadFrom(DungeonLevelData data)
+        {
+            Algorithm  = data.Algorithm;
+            Biome      = data.Biome;
+            Difficulty = data.Difficulty;
+            Width      = data.Width;
+            Height     = data.Height;
+            Seed       = data.Seed;
+            Generate();
+        }
+
+        /// <summary>
         /// Generates a new dungeon map and renders it onto the attached Tilemap.
         /// Safe to call at runtime or from the Editor.
         /// </summary>
