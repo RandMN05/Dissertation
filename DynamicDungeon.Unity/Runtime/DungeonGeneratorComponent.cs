@@ -91,12 +91,46 @@ namespace DynamicDungeon.Unity
                 MaxRegenerationAttempts = MaxRegenerationAttempts
             };
 
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            var map = new MapGenerator().Generate(parameters);
-            sw.Stop();
-            _lastGenerationMs = sw.ElapsedMilliseconds;
+            Debug.Log($"[DungeonGenerator] Starting generation — {Algorithm} / {Biome} / {Difficulty} | {Width}×{Height} | seed {seed} | max attempts {MaxRegenerationAttempts}");
 
+            DynamicDungeon.Core.Models.GenerationReport report = null;
+            TileMap map;
+            try
+            {
+                map = new MapGenerator().GenerateWithReport(parameters, out report);
+            }
+            catch (System.InvalidOperationException ex)
+            {
+                // Log every failed attempt before re-throwing.
+                if (report != null)
+                    LogReport(report, succeeded: false);
+                Debug.LogError($"[DungeonGenerator] {ex.Message}");
+                throw;
+            }
+
+            _lastGenerationMs = report.TotalMs;
+            LogReport(report, succeeded: true);
             ApplyToTilemap(map);
+        }
+
+        private static void LogReport(DynamicDungeon.Core.Models.GenerationReport report, bool succeeded)
+        {
+            // Log each failed attempt as a warning so it stands out.
+            foreach (var reason in report.AttemptFailureReasons)
+                Debug.LogWarning($"[DungeonGenerator] Validation failed — {reason}");
+
+            if (succeeded)
+            {
+                string retryNote = report.FailedAttempts == 0
+                    ? "no retries needed"
+                    : $"{report.FailedAttempts} failed attempt{(report.FailedAttempts == 1 ? "" : "s")} before success";
+
+                Debug.Log($"[DungeonGenerator] Done in {report.TotalMs} ms | succeeded on attempt {report.SuccessfulAttempt} (seed {report.SuccessfulSeed}) | {retryNote}");
+            }
+            else
+            {
+                Debug.LogError($"[DungeonGenerator] All {report.FailedAttempts} attempts failed after {report.TotalMs} ms");
+            }
         }
 
         // ── Private helpers ────────────────────────────────────────────────

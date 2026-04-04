@@ -76,25 +76,25 @@ namespace DynamicDungeon.Core.Algorithms
         private static (int floor, int wall, int wallInterior) GetWeights(BiomeType biome) =>
             biome switch
             {
-                BiomeType.Cave  => (60, 8, 32),
-                BiomeType.Ruins => (52, 7, 41),
-                _               => (45, 5, 50),
+                BiomeType.Cave => (40, 8, 52),
+                BiomeType.Ruins => (34, 7, 59),
+                _ => (28, 5, 67),
             };
 
         private static int TileWeight(WfcTile t, (int floor, int wall, int wallInterior) w) =>
             t switch
             {
-                WfcTile.Floor        => w.floor,
-                WfcTile.Wall         => w.wall,
+                WfcTile.Floor => w.floor,
+                WfcTile.Wall => w.wall,
                 WfcTile.WallInterior => w.wallInterior,
-                _                    => 0,
+                _ => 0,
             };
 
         public TileMap Generate(GenerationParameters p)
         {
-            var rules   = BuildRules();
+            var rules = BuildRules();
             var weights = GetWeights(p.Biome);
-            var pool    = new List<WfcTile> { WfcTile.Floor, WfcTile.Wall, WfcTile.WallInterior };
+            var pool = new List<WfcTile> { WfcTile.Floor, WfcTile.Wall, WfcTile.WallInterior };
 
             for (int attempt = 0; attempt < 50; attempt++)
             {
@@ -120,12 +120,24 @@ namespace DynamicDungeon.Core.Algorithms
             // Border cells are pre-collapsed to Wall to keep maps enclosed.
             var superposition = new HashSet<WfcTile>[w, h];
             for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                superposition[x, y] = (x == 0 || x == w - 1 || y == 0 || y == h - 1)
-                    ? new HashSet<WfcTile> { WfcTile.Wall }
-                    : new HashSet<WfcTile>(pool);
-            }
+                for (int y = 0; y < h; y++)
+                {
+                    superposition[x, y] = (x == 0 || x == w - 1 || y == 0 || y == h - 1)
+                        ? new HashSet<WfcTile> { WfcTile.Wall }
+                        : new HashSet<WfcTile>(pool);
+                }
+
+            // Pre-seed the two corner anchor cells to Floor before the main collapse loop.
+            // This forces WFC's propagation to naturally bias the map toward connectivity —
+            // the two anchors are as far apart as possible, so the algorithm must keep a
+            // Floor-reachable path between them rather than letting wall masses bisect the map.
+            // PlaceSpawnAndExit's corner-scanning search will find these exact cells first.
+            int spawnX = 1, spawnY = 1;
+            int exitX = w - 2, exitY = h - 2;
+            superposition[spawnX, spawnY] = new HashSet<WfcTile> { WfcTile.Floor };
+            superposition[exitX, exitY] = new HashSet<WfcTile> { WfcTile.Floor };
+            if (!Propagate(superposition, rules, w, h, spawnX, spawnY)) return null;
+            if (!Propagate(superposition, rules, w, h, exitX, exitY)) return null;
 
             // Observe → Collapse → Propagate loop.
             while (true)
@@ -134,7 +146,7 @@ namespace DynamicDungeon.Core.Algorithms
                 if (cell == null) break; // All cells collapsed.
 
                 var (cx, cy) = cell.Value;
-                var options  = superposition[cx, cy].ToList();
+                var options = superposition[cx, cy].ToList();
                 if (options.Count == 0) return null; // Contradiction.
 
                 var chosen = PickWeighted(options, weights, rng);
@@ -147,13 +159,13 @@ namespace DynamicDungeon.Core.Algorithms
             // Map WfcTile → Tile.
             var map = new TileMap(w, h);
             for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                map.Set(x, y,
-                    superposition[x, y].First() == WfcTile.Floor
-                        ? Tile.Floor
-                        : Tile.Wall);
-            }
+                for (int y = 0; y < h; y++)
+                {
+                    map.Set(x, y,
+                        superposition[x, y].First() == WfcTile.Floor
+                            ? Tile.Floor
+                            : Tile.Wall);
+                }
 
             PlaceSpawnAndExit(map);
 
@@ -179,19 +191,19 @@ namespace DynamicDungeon.Core.Algorithms
             var candidates = new List<(int x, int y)>();
 
             for (int x = 0; x < w; x++)
-            for (int y = 0; y < h; y++)
-            {
-                if (sp[x, y].Count <= 1) continue; // Already collapsed.
-
-                double entropy = ShannonEntropy(sp[x, y], weights);
-                if (entropy < minEntropy - 1e-9)
+                for (int y = 0; y < h; y++)
                 {
-                    minEntropy = entropy;
-                    candidates.Clear();
+                    if (sp[x, y].Count <= 1) continue; // Already collapsed.
+
+                    double entropy = ShannonEntropy(sp[x, y], weights);
+                    if (entropy < minEntropy - 1e-9)
+                    {
+                        minEntropy = entropy;
+                        candidates.Clear();
+                    }
+                    if (Math.Abs(entropy - minEntropy) < 1e-9)
+                        candidates.Add((x, y));
                 }
-                if (Math.Abs(entropy - minEntropy) < 1e-9)
-                    candidates.Add((x, y));
-            }
 
             if (candidates.Count == 0) return null;
             return candidates[rng.Next(candidates.Count)];
@@ -226,7 +238,7 @@ namespace DynamicDungeon.Core.Algorithms
             if (total == 0) return options[rng.Next(options.Count)];
 
             int roll = rng.Next(total);
-            int cum  = 0;
+            int cum = 0;
             foreach (var t in options)
             {
                 cum += TileWeight(t, weights);
@@ -280,9 +292,9 @@ namespace DynamicDungeon.Core.Algorithms
         private static void PlaceSpawnAndExit(TileMap map)
         {
             map.SpawnPoint = FindFloorTile(map, bottomLeft: true);
-            map.ExitPoint  = FindFloorTile(map, bottomLeft: false);
+            map.ExitPoint = FindFloorTile(map, bottomLeft: false);
             map.Set(map.SpawnPoint.x, map.SpawnPoint.y, Tile.Spawn);
-            map.Set(map.ExitPoint.x,  map.ExitPoint.y,  Tile.Exit);
+            map.Set(map.ExitPoint.x, map.ExitPoint.y, Tile.Exit);
         }
 
         private static (int x, int y) FindFloorTile(TileMap map, bool bottomLeft)
@@ -290,14 +302,14 @@ namespace DynamicDungeon.Core.Algorithms
             if (bottomLeft)
             {
                 for (int y = 1; y < map.Height - 1; y++)
-                for (int x = 1; x < map.Width  - 1; x++)
-                    if (map.Get(x, y) == Tile.Floor) return (x, y);
+                    for (int x = 1; x < map.Width - 1; x++)
+                        if (map.Get(x, y) == Tile.Floor) return (x, y);
             }
             else
             {
                 for (int y = map.Height - 2; y >= 1; y--)
-                for (int x = map.Width  - 2; x >= 1; x--)
-                    if (map.Get(x, y) == Tile.Floor) return (x, y);
+                    for (int x = map.Width - 2; x >= 1; x--)
+                        if (map.Get(x, y) == Tile.Floor) return (x, y);
             }
             return bottomLeft ? (1, 1) : (map.Width - 2, map.Height - 2);
         }
@@ -308,7 +320,7 @@ namespace DynamicDungeon.Core.Algorithms
             while (placed < count && attempts < count * 20)
             {
                 attempts++;
-                int x = rng.Next(1, map.Width  - 1);
+                int x = rng.Next(1, map.Width - 1);
                 int y = rng.Next(1, map.Height - 1);
                 if (map.Get(x, y) == Tile.Floor)
                 {
