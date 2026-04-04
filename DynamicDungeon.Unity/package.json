@@ -1,0 +1,12 @@
+{
+  "name": "com.dynamicdungeon.unity",
+  "version": "1.0.0",
+  "displayName": "Dynamic Dungeon Generator",
+  "description": "Procedural 2D tile map generation using Cellular Automata, Perlin Noise, and Wave Function Collapse. Includes flood fill validation and A* pathfinding.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Dissertation Project"
+  },
+  "keywords": ["procedural", "generation", "dungeon", "tilemap"],
+  "dependencies": {}
+}

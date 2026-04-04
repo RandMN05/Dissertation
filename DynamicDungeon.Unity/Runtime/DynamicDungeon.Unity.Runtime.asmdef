@@ -1,0 +1,15 @@
+{
+    "name": "DynamicDungeon.Unity.Runtime",
+    "rootNamespace": "DynamicDungeon.Unity",
+    "references": [],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DynamicDungeon.Core.dll"
+    ],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": []
+}

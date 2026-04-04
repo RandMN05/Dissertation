@@ -1,0 +1,17 @@
+{
+    "name": "DynamicDungeon.Unity.Editor",
+    "rootNamespace": "DynamicDungeon.Unity.Editor",
+    "references": [
+        "DynamicDungeon.Unity.Runtime"
+    ],
+    "includePlatforms": ["Editor"],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "DynamicDungeon.Core.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": []
+}
