@@ -26,6 +26,20 @@ namespace DynamicDungeon.Unity.Editor
                 LevelDesignerWindow.Open();
             GUI.backgroundColor = Color.white;
 
+            EditorGUILayout.Space(4);
+
+            GUI.backgroundColor = new Color(0.4f, 0.85f, 0.4f);
+            if (GUILayout.Button("Preview Map", GUILayout.Height(30)))
+            {
+                var tilemap = generator.GetComponent<UnityEngine.Tilemaps.Tilemap>();
+                if (tilemap != null) Undo.RecordObject(tilemap, "Preview Map");
+                Undo.RecordObject(generator, "Preview Map");
+                generator.Generate();
+                EditorUtility.SetDirty(generator);
+                if (tilemap != null) EditorUtility.SetDirty(tilemap);
+            }
+            GUI.backgroundColor = Color.white;
+
             // Read-only stats from the last generation
             if (generator.LastGenerationMs > 0)
             {
