@@ -1,65 +1,86 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using DynamicDungeon.Core.Models;
 
 namespace DynamicDungeon.Unity.Editor
 {
     /// <summary>
-    /// Multi-level authoring tool for DynamicDungeon.
+    /// Single authoring tool for DynamicDungeon levels.
     /// Open via: Window → DynamicDungeon → Level Designer
     ///
     /// Workflow:
     ///   1. Assign the DungeonGeneratorComponent from your scene.
-    ///   2. Set how many levels you want and click Apply.
-    ///   3. Configure each level, click Generate Preview to see it in the scene.
-    ///   4. Repeat until you're happy with the map, then click Save Level.
-    ///   5. Once all levels are saved, click Create LevelCollection Asset.
-    ///   6. Drag the LevelCollection into your DungeonBootstrapper in the scene.
+    ///   2. Click "Add" to create new level slots.
+    ///   3. Configure each level (settings + tile sprites).
+    ///   4. Click Generate Preview — see the map in the scene view.
+    ///   5. Repeat until happy, then click Save Level.
+    ///   6. Save Level writes a DungeonLevelData asset AND a ready-to-use scene.
+    ///   7. Open each generated scene, assign your Player and Enemy prefabs.
+    ///   8. Use SceneManager.LoadScene("Level_02_...") to move between levels.
     /// </summary>
     public class LevelDesignerWindow : EditorWindow
     {
+        private const string PrefSaveFolder = "DynamicDungeon_SaveFolder";
+
         [MenuItem("Window/DynamicDungeon/Level Designer")]
         public static void Open() => GetWindow<LevelDesignerWindow>("Level Designer");
 
-        // ── State ──────────────────────────────────────────────────────────────
+        // ── Window state ───────────────────────────────────────────────────────
 
         private DungeonGeneratorComponent _generator;
-        private string _saveFolder = "Assets/DynamicDungeon/Levels";
-        private int    _pendingCount = 3;
+        private string  _saveFolder;
+        private int     _addCount  = 1;
         private Vector2 _scroll;
 
         private readonly List<LevelSlot> _slots = new List<LevelSlot>();
 
-        // ── Slot data class ────────────────────────────────────────────────────
+        // ── LevelSlot ──────────────────────────────────────────────────────────
 
         private class LevelSlot
         {
-            public string         Name       = "Level";
-            public AlgorithmType  Algorithm  = AlgorithmType.CellularAutomata;
-            public BiomeType      Biome      = BiomeType.Dungeon;
+            public string          Name       = "Level";
+            public AlgorithmType   Algorithm  = AlgorithmType.CellularAutomata;
+            public BiomeType       Biome      = BiomeType.Dungeon;
             public DifficultyLevel Difficulty = DifficultyLevel.Medium;
-            public int            Width      = 50;
-            public int            Height     = 50;
-            public int            Seed       = 0;   // 0 = random on next preview
+            public int             Width      = 50;
+            public int             Height     = 50;
+            public int             Seed       = 0;
 
-            // Runtime authoring state (not persisted)
-            public bool            Generated    = false;
-            public int             LastSeedUsed = 0;
-            public bool            Saved        = false;
-            public DungeonLevelData SavedAsset  = null;
-            public bool            Foldout      = true;
+            // Tile sprites
+            public TileBase WallTile;
+            public TileBase FloorTile;
+            public TileBase SpawnTile;
+            public TileBase ExitTile;
+            public TileBase EnemyTile;
+
+            // Authoring state
+            public bool             Generated    = false;
+            public int              LastSeedUsed = 0;
+            public long             LastGenMs    = 0;
+            public int              LastEnemies  = 0;
+            public bool             Saved        = false;
+            public DungeonLevelData SavedAsset   = null;
+            public bool             Foldout      = true;
         }
 
-        // ── GUI ────────────────────────────────────────────────────────────────
+        // ── Lifecycle ──────────────────────────────────────────────────────────
+
+        private void OnEnable()
+        {
+            _saveFolder = EditorPrefs.GetString(PrefSaveFolder, "Assets/DynamicDungeon/Levels");
+            LoadSlotsFromDisk();
+        }
+
+        // ── OnGUI ──────────────────────────────────────────────────────────────
 
         private void OnGUI()
         {
             DrawHeader();
-            DrawGeneratorField();
-            DrawSaveFolderField();
-
-            EditorGUILayout.Space(8);
             DrawSeparator();
 
             _scroll = EditorGUILayout.BeginScrollView(_scroll);
@@ -71,24 +92,24 @@ namespace DynamicDungeon.Unity.Editor
             DrawBottomButtons();
         }
 
+        // ── Header ─────────────────────────────────────────────────────────────
+
         private void DrawHeader()
         {
             EditorGUILayout.Space(6);
             EditorGUILayout.LabelField("DynamicDungeon  —  Level Designer", EditorStyles.boldLabel);
-            EditorGUILayout.Space(2);
-
-            // Level count row
-            EditorGUILayout.BeginHorizontal();
-            _pendingCount = EditorGUILayout.IntField("Number of Levels", _pendingCount);
-            _pendingCount = Mathf.Clamp(_pendingCount, 1, 50);
-            if (GUILayout.Button("Apply", GUILayout.Width(70)))
-                ApplyLevelCount(_pendingCount);
-            EditorGUILayout.EndHorizontal();
-        }
-
-        private void DrawGeneratorField()
-        {
             EditorGUILayout.Space(4);
+
+            // Add new levels
+            EditorGUILayout.BeginHorizontal();
+            _addCount = Mathf.Clamp(EditorGUILayout.IntField("Add New Levels", _addCount), 1, 50);
+            if (GUILayout.Button("Add", GUILayout.Width(70)))
+                AddNewSlots(_addCount);
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(4);
+
+            // Scene generator reference
             _generator = (DungeonGeneratorComponent)EditorGUILayout.ObjectField(
                 new GUIContent("Scene Generator",
                     "The DungeonGeneratorComponent in your scene — used for Generate Preview."),
@@ -98,100 +119,153 @@ namespace DynamicDungeon.Unity.Editor
                 EditorGUILayout.HelpBox(
                     "Assign the DungeonGeneratorComponent from your scene to enable Generate Preview.",
                     MessageType.Info);
-        }
 
-        private void DrawSaveFolderField()
-        {
+            EditorGUILayout.Space(4);
+
+            // Save folder
             EditorGUILayout.BeginHorizontal();
+            EditorGUI.BeginChangeCheck();
             _saveFolder = EditorGUILayout.TextField(
-                new GUIContent("Save Folder", "Where level assets will be written inside your project."),
+                new GUIContent("Save Folder", "Where level assets and scenes will be saved."),
                 _saveFolder);
+            if (EditorGUI.EndChangeCheck())
+                EditorPrefs.SetString(PrefSaveFolder, _saveFolder);
 
             if (GUILayout.Button("Browse", GUILayout.Width(70)))
             {
                 string picked = EditorUtility.OpenFolderPanel("Select Save Folder", "Assets", "");
                 if (!string.IsNullOrEmpty(picked) && picked.StartsWith(Application.dataPath))
+                {
                     _saveFolder = "Assets" + picked.Substring(Application.dataPath.Length);
+                    EditorPrefs.SetString(PrefSaveFolder, _saveFolder);
+                }
             }
             EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(4);
         }
+
+        // ── Level slot ─────────────────────────────────────────────────────────
 
         private void DrawSlot(int index)
         {
             var slot = _slots[index];
 
-            // Status label for the foldout header
-            string status = slot.Saved      ? "✓ Saved"
-                          : slot.Generated  ? "● Previewed — not saved"
-                          :                   "○ Not generated";
+            string status = slot.Saved     ? "✓ Saved"
+                          : slot.Generated ? "● Previewed"
+                          :                  "○ Not generated";
             string header = $"Level {index + 1}  —  {slot.Name}     [{status}]";
 
-            slot.Foldout = EditorGUILayout.BeginFoldoutHeaderGroup(slot.Foldout, header);
-            if (slot.Foldout)
+            // Manual foldout header row so we can place the × button inline
+            EditorGUILayout.BeginHorizontal();
+            slot.Foldout = EditorGUILayout.Foldout(slot.Foldout, header, toggleOnLabelClick: true,
+                EditorStyles.foldoutHeader);
+
+            if (slot.Saved)
             {
-                EditorGUI.indentLevel++;
+                GUI.backgroundColor = new Color(1f, 0.35f, 0.35f);
+                if (GUILayout.Button("×", GUILayout.Width(24), GUILayout.Height(18)))
+                    DeleteLevel(index);
+                GUI.backgroundColor = Color.white;
+            }
+            EditorGUILayout.EndHorizontal();
 
-                slot.Name       = EditorGUILayout.TextField("Name", slot.Name);
-                slot.Algorithm  = (AlgorithmType)EditorGUILayout.EnumPopup("Algorithm", slot.Algorithm);
-                slot.Biome      = (BiomeType)EditorGUILayout.EnumPopup("Biome", slot.Biome);
-                slot.Difficulty = (DifficultyLevel)EditorGUILayout.EnumPopup("Difficulty", slot.Difficulty);
+            if (!slot.Foldout)
+                return;
 
-                EditorGUILayout.BeginHorizontal();
-                slot.Width  = Mathf.Clamp(EditorGUILayout.IntField("Width",  slot.Width),  10, 200);
-                slot.Height = Mathf.Clamp(EditorGUILayout.IntField("Height", slot.Height), 10, 200);
-                EditorGUILayout.EndHorizontal();
+            EditorGUI.indentLevel++;
 
-                EditorGUILayout.BeginHorizontal();
-                slot.Seed = EditorGUILayout.IntField(
-                    new GUIContent("Seed", "0 = pick a random seed on the next Generate Preview."),
-                    slot.Seed);
-                if (GUILayout.Button("Random", GUILayout.Width(70)))
-                    slot.Seed = 0;
-                EditorGUILayout.EndHorizontal();
+            // Name
+            slot.Name = EditorGUILayout.TextField("Name", slot.Name);
 
-                // Show the seed that was actually used after a preview
-                if (slot.Generated)
-                {
-                    using (new EditorGUI.DisabledScope(true))
-                        EditorGUILayout.IntField(
-                            new GUIContent("Seed Used", "This exact seed will be saved with the level."),
-                            slot.LastSeedUsed);
-                }
+            EditorGUILayout.Space(4);
 
-                EditorGUILayout.Space(6);
+            // ── Generation Parameters ──────────────────────────────────────
+            EditorGUILayout.LabelField("Generation Parameters", EditorStyles.boldLabel);
 
-                // Action buttons
-                EditorGUILayout.BeginHorizontal();
+            slot.Algorithm  = (AlgorithmType)EditorGUILayout.EnumPopup("Algorithm",   slot.Algorithm);
+            slot.Biome      = (BiomeType)EditorGUILayout.EnumPopup("Biome",           slot.Biome);
+            slot.Difficulty = (DifficultyLevel)EditorGUILayout.EnumPopup("Difficulty", slot.Difficulty);
 
-                using (new EditorGUI.DisabledScope(_generator == null))
-                {
-                    if (GUILayout.Button("Generate Preview", GUILayout.Height(28)))
-                        GeneratePreview(index);
-                }
+            EditorGUILayout.BeginHorizontal();
+            slot.Width  = Mathf.Clamp(EditorGUILayout.IntField("Width",  slot.Width),  10, 200);
+            slot.Height = Mathf.Clamp(EditorGUILayout.IntField("Height", slot.Height), 10, 200);
+            EditorGUILayout.EndHorizontal();
 
-                using (new EditorGUI.DisabledScope(!slot.Generated))
-                {
-                    GUI.backgroundColor = slot.Generated ? new Color(0.4f, 0.85f, 0.4f) : Color.white;
-                    if (GUILayout.Button("Save Level", GUILayout.Height(28)))
-                        SaveLevel(index);
-                    GUI.backgroundColor = Color.white;
-                }
+            EditorGUILayout.BeginHorizontal();
+            slot.Seed = EditorGUILayout.IntField(
+                new GUIContent("Seed", "0 = random each preview. The actual seed used is saved with the level."),
+                slot.Seed);
+            if (GUILayout.Button("Random", GUILayout.Width(70)))
+                slot.Seed = 0;
+            EditorGUILayout.EndHorizontal();
 
-                EditorGUILayout.EndHorizontal();
+            EditorGUILayout.Space(6);
 
-                if (slot.Saved && slot.SavedAsset != null)
-                {
-                    EditorGUILayout.Space(2);
-                    using (new EditorGUI.DisabledScope(true))
-                        EditorGUILayout.ObjectField("Saved Asset", slot.SavedAsset, typeof(DungeonLevelData), false);
-                }
+            // ── Tile Sprites ───────────────────────────────────────────────
+            EditorGUILayout.LabelField("Tile Sprites", EditorStyles.boldLabel);
 
-                EditorGUI.indentLevel--;
-                EditorGUILayout.Space(4);
+            slot.WallTile  = (TileBase)EditorGUILayout.ObjectField(
+                new GUIContent("Wall"),  slot.WallTile,  typeof(TileBase), false);
+            slot.FloorTile = (TileBase)EditorGUILayout.ObjectField(
+                new GUIContent("Floor"), slot.FloorTile, typeof(TileBase), false);
+            slot.SpawnTile = (TileBase)EditorGUILayout.ObjectField(
+                new GUIContent("Spawn"), slot.SpawnTile, typeof(TileBase), false);
+            slot.ExitTile  = (TileBase)EditorGUILayout.ObjectField(
+                new GUIContent("Exit"),  slot.ExitTile,  typeof(TileBase), false);
+            slot.EnemyTile = (TileBase)EditorGUILayout.ObjectField(
+                new GUIContent("Enemy"), slot.EnemyTile, typeof(TileBase), false);
+
+            EditorGUILayout.Space(6);
+
+            // ── Action buttons ─────────────────────────────────────────────
+            EditorGUILayout.BeginHorizontal();
+
+            using (new EditorGUI.DisabledScope(_generator == null))
+            {
+                if (GUILayout.Button("Generate Preview", GUILayout.Height(28)))
+                    GeneratePreview(index);
             }
 
-            EditorGUILayout.EndFoldoutHeaderGroup();
+            using (new EditorGUI.DisabledScope(!slot.Generated))
+            {
+                GUI.backgroundColor = slot.Generated ? new Color(0.4f, 0.85f, 0.4f) : Color.white;
+                if (GUILayout.Button("Save Level", GUILayout.Height(28)))
+                    SaveLevel(index);
+                GUI.backgroundColor = Color.white;
+            }
+
+            EditorGUILayout.EndHorizontal();
+
+            // ── Last Generation stats ──────────────────────────────────────
+            if (slot.Generated)
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.LabelField("Last Generation", EditorStyles.boldLabel);
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    EditorGUILayout.IntField(
+                        new GUIContent("Seed Used", "This exact seed is saved with the level."),
+                        slot.LastSeedUsed);
+                    EditorGUILayout.LabelField("Time",    $"{slot.LastGenMs} ms");
+                    EditorGUILayout.LabelField("Enemies", slot.LastEnemies.ToString());
+                }
+            }
+
+            // ── Saved asset reference ──────────────────────────────────────
+            if (slot.Saved && slot.SavedAsset != null)
+            {
+                EditorGUILayout.Space(2);
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGUILayout.ObjectField("Saved Asset", slot.SavedAsset,
+                        typeof(DungeonLevelData), false);
+            }
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.Space(4);
         }
+
+        // ── Bottom buttons ─────────────────────────────────────────────────────
 
         private void DrawBottomButtons()
         {
@@ -211,29 +285,154 @@ namespace DynamicDungeon.Unity.Editor
 
             EditorGUILayout.Space(4);
 
-            GUI.backgroundColor = new Color(0.4f, 0.75f, 1f);
-            if (GUILayout.Button("Create LevelCollection Asset", GUILayout.Height(34)))
-                CreateLevelCollection();
+            GUI.backgroundColor = new Color(0.9f, 0.3f, 0.3f);
+            if (GUILayout.Button("Delete All Levels", GUILayout.Height(28)))
+                DeleteAll();
             GUI.backgroundColor = Color.white;
 
             EditorGUILayout.Space(6);
         }
 
-        private static void DrawSeparator()
+        // ── Disk actions ───────────────────────────────────────────────────────
+
+        /// Scans the save folder for existing DungeonLevelData assets and
+        /// restores saved slots. Called on window open/recompile.
+        private void LoadSlotsFromDisk()
         {
-            EditorGUILayout.Space(2);
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
-            EditorGUILayout.Space(2);
+            // Keep any unsaved (in-progress) slots the user was working on
+            var unsaved = _slots.Where(s => !s.Saved).ToList();
+            _slots.Clear();
+
+            if (!AssetDatabase.IsValidFolder(_saveFolder))
+            {
+                _slots.AddRange(unsaved);
+                return;
+            }
+
+            var guids = AssetDatabase.FindAssets("t:DungeonLevelData", new[] { _saveFolder });
+            var saved = guids
+                .Select(g => AssetDatabase.LoadAssetAtPath<DungeonLevelData>(
+                    AssetDatabase.GUIDToAssetPath(g)))
+                .Where(a => a != null)
+                .OrderBy(a => AssetDatabase.GetAssetPath(a))
+                .Select(data => new LevelSlot
+                {
+                    Name         = data.LevelName,
+                    Algorithm    = data.Algorithm,
+                    Biome        = data.Biome,
+                    Difficulty   = data.Difficulty,
+                    Width        = data.Width,
+                    Height       = data.Height,
+                    Seed         = data.Seed,
+                    WallTile     = data.WallTile,
+                    FloorTile    = data.FloorTile,
+                    SpawnTile    = data.SpawnTile,
+                    ExitTile     = data.ExitTile,
+                    EnemyTile    = data.EnemyTile,
+                    Generated    = true,
+                    LastSeedUsed = data.Seed,
+                    Saved        = true,
+                    SavedAsset   = data,
+                    Foldout      = false   // collapsed by default
+                });
+
+            _slots.AddRange(saved);
+            _slots.AddRange(unsaved);
         }
 
-        // ── Actions ────────────────────────────────────────────────────────────
-
-        private void ApplyLevelCount(int count)
+        private void DeleteLevel(int index)
         {
-            while (_slots.Count < count)
-                _slots.Add(new LevelSlot { Name = $"Level {_slots.Count + 1}" });
-            while (_slots.Count > count)
-                _slots.RemoveAt(_slots.Count - 1);
+            var slot = _slots[index];
+
+            // Unsaved slot — just remove it, no confirmation needed
+            if (!slot.Saved || slot.SavedAsset == null)
+            {
+                _slots.RemoveAt(index);
+                return;
+            }
+
+            string assetPath   = AssetDatabase.GetAssetPath(slot.SavedAsset);
+            string scenePath   = Path.ChangeExtension(assetPath, ".unity");
+            string displayName = Path.GetFileNameWithoutExtension(assetPath);
+
+            if (!EditorUtility.DisplayDialog(
+                "Delete Level",
+                $"Permanently delete {displayName}?\n\nThis removes both the scene and the data asset and cannot be undone.",
+                "Delete", "Cancel"))
+                return;
+
+            AssetDatabase.DeleteAsset(assetPath);
+            if (File.Exists(Path.GetFullPath(scenePath)))
+                AssetDatabase.DeleteAsset(scenePath);
+
+            RemoveSceneFromBuildSettings(scenePath);
+            _slots.RemoveAt(index);
+            RechainScenes();
+            AssetDatabase.Refresh();
+        }
+
+        private void DeleteAll()
+        {
+            if (!EditorUtility.DisplayDialog(
+                "Delete All Levels",
+                "Permanently delete ALL level scenes and data assets?\n\nThis cannot be undone.",
+                "Delete All", "Cancel"))
+                return;
+
+            foreach (var slot in _slots.ToList())
+            {
+                if (slot.SavedAsset == null) continue;
+                string assetPath = AssetDatabase.GetAssetPath(slot.SavedAsset);
+                string scenePath = Path.ChangeExtension(assetPath, ".unity");
+                AssetDatabase.DeleteAsset(assetPath);
+                if (File.Exists(Path.GetFullPath(scenePath)))
+                    AssetDatabase.DeleteAsset(scenePath);
+                RemoveSceneFromBuildSettings(scenePath);
+            }
+
+            _slots.Clear();
+            AssetDatabase.Refresh();
+        }
+
+        /// After any delete, walk all remaining saved scenes and update their
+        /// NextSceneName so the chain stays correct.
+        private void RechainScenes()
+        {
+            var savedSlots = _slots.Where(s => s.Saved && s.SavedAsset != null).ToList();
+
+            for (int i = 0; i < savedSlots.Count; i++)
+            {
+                string assetPath = AssetDatabase.GetAssetPath(savedSlots[i].SavedAsset);
+                string scenePath = Path.ChangeExtension(assetPath, ".unity");
+
+                if (!File.Exists(Path.GetFullPath(scenePath))) continue;
+
+                string nextName = i + 1 < savedSlots.Count
+                    ? Path.GetFileNameWithoutExtension(
+                        AssetDatabase.GetAssetPath(savedSlots[i + 1].SavedAsset))
+                    : "";
+
+                var scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+                foreach (var root in scene.GetRootGameObjects())
+                {
+                    var bootstrapper = root.GetComponentInChildren<DungeonBootstrapper>();
+                    if (bootstrapper == null) continue;
+                    bootstrapper.NextSceneName = nextName;
+                    EditorUtility.SetDirty(bootstrapper);
+                    break;
+                }
+                EditorSceneManager.SaveScene(scene);
+                EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+
+        // ── Generation / save actions ──────────────────────────────────────────
+
+        private void AddNewSlots(int count)
+        {
+            int startIndex = _slots.Count;
+            for (int i = 0; i < count; i++)
+                _slots.Add(new LevelSlot { Name = $"Level {startIndex + i + 1}" });
         }
 
         private void GeneratePreview(int index)
@@ -241,21 +440,16 @@ namespace DynamicDungeon.Unity.Editor
             if (_generator == null) return;
 
             var slot = _slots[index];
-
-            _generator.Algorithm  = slot.Algorithm;
-            _generator.Biome      = slot.Biome;
-            _generator.Difficulty = slot.Difficulty;
-            _generator.Width      = slot.Width;
-            _generator.Height     = slot.Height;
-            _generator.Seed       = slot.Seed;
-
+            ApplySlotToGenerator(slot);
             _generator.Generate();
 
             slot.LastSeedUsed = _generator.LastSeedUsed;
+            slot.LastGenMs    = _generator.LastGenerationMs;
+            slot.LastEnemies  = _generator.EnemyCells.Count;
             slot.Generated    = true;
-            slot.Saved        = false; // new preview invalidates any previous save
+            slot.Saved        = false;
 
-            var tilemap = _generator.GetComponent<UnityEngine.Tilemaps.Tilemap>();
+            var tilemap = _generator.GetComponent<Tilemap>();
             if (tilemap != null) EditorUtility.SetDirty(tilemap);
             SceneView.RepaintAll();
         }
@@ -265,17 +459,20 @@ namespace DynamicDungeon.Unity.Editor
             var slot = _slots[index];
             if (!slot.Generated)
             {
-                Debug.LogWarning($"[LevelDesigner] Level {index + 1} has not been previewed yet — generate it first.");
+                Debug.LogWarning($"[LevelDesigner] Level {index + 1} has not been previewed yet.");
                 return;
             }
 
             EnsureFolderExists(_saveFolder);
 
-            string safeName = slot.Name.Replace(" ", "_");
-            string assetPath = $"{_saveFolder}/Level_{(index + 1):D2}_{safeName}.asset";
+            string safeName  = slot.Name.Replace(" ", "_");
+            string baseName  = $"Level_{(index + 1):D2}_{safeName}";
+            string assetPath = $"{_saveFolder}/{baseName}.asset";
+            string scenePath = $"{_saveFolder}/{baseName}.unity";
 
+            // ── Save DungeonLevelData asset ────────────────────────────────
             var data = AssetDatabase.LoadAssetAtPath<DungeonLevelData>(assetPath)
-                       ?? CreateAndSaveAsset<DungeonLevelData>(assetPath);
+                       ?? CreateAndSave<DungeonLevelData>(assetPath);
 
             data.LevelName  = slot.Name;
             data.Algorithm  = slot.Algorithm;
@@ -283,15 +480,84 @@ namespace DynamicDungeon.Unity.Editor
             data.Difficulty = slot.Difficulty;
             data.Width      = slot.Width;
             data.Height     = slot.Height;
-            data.Seed       = slot.LastSeedUsed; // always the actual seed, never 0
+            data.Seed       = slot.LastSeedUsed;
+            data.WallTile   = slot.WallTile;
+            data.FloorTile  = slot.FloorTile;
+            data.SpawnTile  = slot.SpawnTile;
+            data.ExitTile   = slot.ExitTile;
+            data.EnemyTile  = slot.EnemyTile;
 
             EditorUtility.SetDirty(data);
             AssetDatabase.SaveAssets();
 
-            slot.Saved     = true;
+            slot.Saved      = true;
             slot.SavedAsset = data;
 
-            Debug.Log($"[LevelDesigner] Level {index + 1} saved → {assetPath}  (seed {data.Seed})");
+            // ── Create level scene ─────────────────────────────────────────
+            CreateLevelScene(index, data, scenePath);
+
+            Debug.Log($"[LevelDesigner] Level {index + 1} saved → {assetPath} + {scenePath}  (seed {data.Seed})");
+        }
+
+        private void CreateLevelScene(int index, DungeonLevelData data, string scenePath)
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+
+            // Grid → Tilemap
+            var gridObj = new GameObject("Grid");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(gridObj, scene);
+            gridObj.AddComponent<Grid>();
+
+            var tilemapObj = new GameObject("Tilemap");
+            tilemapObj.transform.SetParent(gridObj.transform);
+            var tilemap   = tilemapObj.AddComponent<Tilemap>();
+            tilemapObj.AddComponent<TilemapRenderer>();
+            var generator = tilemapObj.AddComponent<DungeonGeneratorComponent>();
+
+            generator.Algorithm  = data.Algorithm;
+            generator.Biome      = data.Biome;
+            generator.Difficulty = data.Difficulty;
+            generator.Width      = data.Width;
+            generator.Height     = data.Height;
+            generator.Seed       = data.Seed;
+            generator.WallTile   = data.WallTile;
+            generator.FloorTile  = data.FloorTile;
+            generator.SpawnTile  = data.SpawnTile;
+            generator.ExitTile   = data.ExitTile;
+            generator.EnemyTile  = data.EnemyTile;
+
+            // Bootstrapper
+            var bootstrapObj = new GameObject("DungeonBootstrapper");
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(bootstrapObj, scene);
+            var bootstrapper = bootstrapObj.AddComponent<DungeonBootstrapper>();
+
+            bootstrapper.DungeonGenerator = generator;
+            bootstrapper.Tilemap          = tilemap;
+            bootstrapper.LevelData        = data;
+            bootstrapper.NextSceneName    = BuildNextSceneName(index);
+            // PlayerPrefab / EnemyPrefab left null — developer fills in
+
+            EditorSceneManager.SaveScene(scene, scenePath);
+            EditorSceneManager.CloseScene(scene, true);
+            AddSceneToBuildSettings(scenePath);
+            AssetDatabase.Refresh();
+        }
+
+        private string BuildNextSceneName(int currentIndex)
+        {
+            // Find the next saved slot or next slot in the list
+            for (int i = currentIndex + 1; i < _slots.Count; i++)
+            {
+                var next = _slots[i];
+                if (next.SavedAsset != null)
+                    return Path.GetFileNameWithoutExtension(
+                        AssetDatabase.GetAssetPath(next.SavedAsset));
+
+                // Not yet saved — derive name from what it will be called
+                string safeName = next.Name.Replace(" ", "_");
+                return $"Level_{(i + 1):D2}_{safeName}";
+            }
+            return "";
         }
 
         private void GenerateAll()
@@ -311,35 +577,39 @@ namespace DynamicDungeon.Unity.Editor
             }
         }
 
-        private void CreateLevelCollection()
-        {
-            var savedSlots = _slots.FindAll(s => s.SavedAsset != null);
-            if (savedSlots.Count == 0)
-            {
-                EditorUtility.DisplayDialog(
-                    "No Saved Levels",
-                    "Save at least one level before creating a LevelCollection.",
-                    "OK");
-                return;
-            }
-
-            EnsureFolderExists(_saveFolder);
-            string collectionPath = $"{_saveFolder}/LevelCollection.asset";
-
-            var collection = AssetDatabase.LoadAssetAtPath<LevelCollection>(collectionPath)
-                             ?? CreateAndSaveAsset<LevelCollection>(collectionPath);
-
-            collection.Levels = savedSlots.ConvertAll(s => s.SavedAsset).ToArray();
-            EditorUtility.SetDirty(collection);
-            AssetDatabase.SaveAssets();
-
-            EditorGUIUtility.PingObject(collection);
-            Debug.Log($"[LevelDesigner] LevelCollection saved → {collectionPath}  ({collection.Levels.Length} levels)");
-        }
-
         // ── Helpers ────────────────────────────────────────────────────────────
 
-        private static T CreateAndSaveAsset<T>(string path) where T : ScriptableObject
+        private void ApplySlotToGenerator(LevelSlot slot)
+        {
+            _generator.Algorithm  = slot.Algorithm;
+            _generator.Biome      = slot.Biome;
+            _generator.Difficulty = slot.Difficulty;
+            _generator.Width      = slot.Width;
+            _generator.Height     = slot.Height;
+            _generator.Seed       = slot.Seed;
+            _generator.WallTile   = slot.WallTile;
+            _generator.FloorTile  = slot.FloorTile;
+            _generator.SpawnTile  = slot.SpawnTile;
+            _generator.ExitTile   = slot.ExitTile;
+            _generator.EnemyTile  = slot.EnemyTile;
+        }
+
+        private static void AddSceneToBuildSettings(string scenePath)
+        {
+            var scenes = EditorBuildSettings.scenes.ToList();
+            if (scenes.Any(s => s.path == scenePath)) return;
+            scenes.Add(new EditorBuildSettingsScene(scenePath, true));
+            EditorBuildSettings.scenes = scenes.ToArray();
+        }
+
+        private static void RemoveSceneFromBuildSettings(string scenePath)
+        {
+            EditorBuildSettings.scenes = EditorBuildSettings.scenes
+                .Where(s => s.path != scenePath)
+                .ToArray();
+        }
+
+        private static T CreateAndSave<T>(string path) where T : ScriptableObject
         {
             var asset = ScriptableObject.CreateInstance<T>();
             AssetDatabase.CreateAsset(asset, path);
@@ -349,9 +619,8 @@ namespace DynamicDungeon.Unity.Editor
         private static void EnsureFolderExists(string folderPath)
         {
             if (AssetDatabase.IsValidFolder(folderPath)) return;
-
-            string[] parts = folderPath.Split('/');
-            string current = parts[0];
+            string[] parts   = folderPath.Split('/');
+            string   current = parts[0];
             for (int i = 1; i < parts.Length; i++)
             {
                 string next = $"{current}/{parts[i]}";
@@ -359,6 +628,13 @@ namespace DynamicDungeon.Unity.Editor
                     AssetDatabase.CreateFolder(current, parts[i]);
                 current = next;
             }
+        }
+
+        private static void DrawSeparator()
+        {
+            EditorGUILayout.Space(2);
+            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+            EditorGUILayout.Space(2);
         }
     }
 }

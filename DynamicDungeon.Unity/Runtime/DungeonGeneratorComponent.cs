@@ -81,6 +81,11 @@ namespace DynamicDungeon.Unity
             Width      = data.Width;
             Height     = data.Height;
             Seed       = data.Seed;
+            WallTile   = data.WallTile;
+            FloorTile  = data.FloorTile;
+            SpawnTile  = data.SpawnTile;
+            ExitTile   = data.ExitTile;
+            EnemyTile  = data.EnemyTile;
             Generate();
         }
 

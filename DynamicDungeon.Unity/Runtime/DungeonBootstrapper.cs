@@ -1,12 +1,12 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.Tilemaps;
 
 namespace DynamicDungeon.Unity
 {
-    // Attach to an empty GameObject in the scene.
-    // Drag a LevelCollection asset (created in the Level Designer window) into
-    // the Levels slot to enable multi-level progression. Leave it empty to use
-    // whatever is currently configured on the DungeonGeneratorComponent.
+    // Attach to a GameObject in each generated level scene.
+    // Wired automatically by the Level Designer window — assign your own
+    // PlayerPrefab and EnemyPrefab after the scene is created.
     public class DungeonBootstrapper : MonoBehaviour
     {
         [Header("References")]
@@ -19,34 +19,54 @@ namespace DynamicDungeon.Unity
         [Tooltip("Needs EnemyController, Rigidbody2D, CircleCollider2D.")]
         public GameObject EnemyPrefab;
 
-        [Header("Levels")]
-        [Tooltip("Drag a LevelCollection asset here to use authored levels in order. Leave empty to use the generator's current settings.")]
-        public LevelCollection Levels;
+        [Header("Level")]
+        [Tooltip("The saved level data for this scene. Wired automatically by the Level Designer window.")]
+        public DungeonLevelData LevelData;
+
+        [Tooltip("Scene name to load when the player reaches the exit. Leave empty on the final level.")]
+        public string NextSceneName = "";
 
         [Header("Tuning")]
         public float WinDistance  = 0.6f;
         public float LoseDistance = 0.4f;
 
-        private int     _currentLevel;
-        private Vector3 _exitWorldPos;
-        private bool    _gameOver;
-        private string  _endMessage;
-        private bool    _transitioning;
-
+        private Vector3    _exitWorldPos;
+        private bool       _gameOver;
+        private string     _endMessage;
         private GameObject _player;
 
-        private void Start() => LoadLevel(0);
+        private void Start()
+        {
+            // Load from the saved asset (guaranteed same map every time) or
+            // fall back to whatever is configured on the generator directly.
+            if (LevelData != null)
+                DungeonGenerator.LoadFrom(LevelData);
+            else
+                DungeonGenerator.Generate();
+
+            var spawnWorld = CellToWorld(DungeonGenerator.SpawnCell);
+            if (PlayerPrefab != null)
+            {
+                _player     = Instantiate(PlayerPrefab, spawnWorld, Quaternion.identity);
+                _player.tag = "Player";
+            }
+
+            if (EnemyPrefab != null)
+                foreach (var cell in DungeonGenerator.EnemyCells)
+                    Instantiate(EnemyPrefab, CellToWorld(cell), Quaternion.identity);
+
+            _exitWorldPos = CellToWorld(DungeonGenerator.ExitCell);
+        }
 
         private void Update()
         {
-            if (_gameOver || _transitioning || _player == null) return;
+            if (_gameOver || _player == null) return;
 
             // Win: player reached exit
             if (Vector2.Distance(_player.transform.position, _exitWorldPos) < WinDistance)
             {
-                int next = _currentLevel + 1;
-                if (Levels != null && Levels.IsValidIndex(next))
-                    StartCoroutine(TransitionToLevel(next));
+                if (!string.IsNullOrEmpty(NextSceneName))
+                    SceneManager.LoadScene(NextSceneName);
                 else
                     EndGame("You escaped every dungeon!\nYOU WIN!");
                 return;
@@ -63,64 +83,8 @@ namespace DynamicDungeon.Unity
             }
         }
 
-        private void LoadLevel(int index)
-        {
-            _currentLevel  = index;
-            _transitioning = false;
-
-            // Load from collection if available, otherwise use generator as-is.
-            if (Levels != null && Levels.IsValidIndex(index))
-                DungeonGenerator.LoadFrom(Levels.Levels[index]);
-            else
-                DungeonGenerator.Generate();
-
-            // Destroy old enemies before spawning new ones.
-            foreach (var e in FindObjectsByType<EnemyController>(FindObjectsSortMode.None))
-                Destroy(e.gameObject);
-
-            // Reposition existing player or spawn a new one.
-            var spawnWorld = CellToWorld(DungeonGenerator.SpawnCell);
-            if (_player != null)
-            {
-                _player.transform.position = spawnWorld;
-                var rb = _player.GetComponent<Rigidbody2D>();
-                if (rb != null) rb.linearVelocity = Vector2.zero;
-            }
-            else
-            {
-                _player = Instantiate(PlayerPrefab, spawnWorld, Quaternion.identity);
-                _player.tag = "Player";
-            }
-
-            foreach (var cell in DungeonGenerator.EnemyCells)
-                Instantiate(EnemyPrefab, CellToWorld(cell), Quaternion.identity);
-
-            _exitWorldPos = CellToWorld(DungeonGenerator.ExitCell);
-        }
-
-        private System.Collections.IEnumerator TransitionToLevel(int index)
-        {
-            _transitioning = true;
-            yield return new WaitForSeconds(0.4f);
-            LoadLevel(index);
-        }
-
         private void OnGUI()
         {
-            if (!_gameOver)
-            {
-                string levelName = Levels != null && Levels.IsValidIndex(_currentLevel)
-                    ? $"Level {_currentLevel + 1} — {Levels.Levels[_currentLevel].LevelName}"
-                    : $"Level {_currentLevel + 1}";
-
-                var labelStyle = new GUIStyle(GUI.skin.label)
-                {
-                    fontSize = 22,
-                    normal   = { textColor = Color.white }
-                };
-                GUI.Label(new Rect(12, 8, 400, 36), levelName, labelStyle);
-            }
-
             if (!_gameOver) return;
 
             var style = new GUIStyle(GUI.skin.label)
@@ -134,8 +98,7 @@ namespace DynamicDungeon.Unity
             var btnStyle = new GUIStyle(GUI.skin.button) { fontSize = 24 };
             float bw = 200, bh = 50;
             if (GUI.Button(new Rect(Screen.width / 2f - bw / 2f, Screen.height / 2f + 40, bw, bh), "Play Again", btnStyle))
-                UnityEngine.SceneManagement.SceneManager.LoadScene(
-                    UnityEngine.SceneManagement.SceneManager.GetActiveScene().name);
+                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
         }
 
         private void EndGame(string message)

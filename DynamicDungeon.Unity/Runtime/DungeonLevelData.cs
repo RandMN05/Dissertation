@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 using DynamicDungeon.Core.Models;
 
 namespace DynamicDungeon.Unity
@@ -26,5 +27,13 @@ namespace DynamicDungeon.Unity
         /// Passing this back to the generator reproduces the identical map.
         /// </summary>
         public int Seed;
+
+        // ── Tile Sprites ───────────────────────────────────────────────────────
+        [Header("Tile Sprites")]
+        public TileBase WallTile;
+        public TileBase FloorTile;
+        public TileBase SpawnTile;
+        public TileBase ExitTile;
+        public TileBase EnemyTile;
     }
 }
