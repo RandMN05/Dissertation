@@ -215,6 +215,8 @@ namespace DynamicDungeon.Unity
             _spawnCell = new Vector3Int(map.SpawnPoint.x, map.SpawnPoint.y, 0);
             _exitCell  = new Vector3Int(map.ExitPoint.x,  map.ExitPoint.y,  0);
 
+            // DungeonMap makes defensive copies of all lists — _enemyCells and _pathCells
+            // are safe to clear on the next Generate() call.
             LastMap = new DungeonMap(
                 _spawnCell, _exitCell,
                 _enemyCells, floorCells, wallCells, _pathCells,
