@@ -78,7 +78,7 @@ That's it. The `DungeonMap` object passed to your callback contains everything l
 | `Tilemap` | `Tilemap` | The live Tilemap this map was rendered onto |
 | `Width` | `int` | Map width in tiles |
 | `Height` | `int` | Map height in tiles |
-| `Seed` | `int` | The seed used — pass back to `DungeonGeneratorComponent.Seed` to reproduce this exact map |
+| `Seed` | `int` | The actual seed used — assign to `DungeonGeneratorComponent.Seed` and call `Generate()` again to reproduce this exact map. Do not leave `Seed` at 0, as that triggers random re-seeding. |
 
 ### Methods
 
@@ -135,7 +135,7 @@ private void OnMapReady(DungeonMap map)
 public bool TryPlaceTurret(Vector3Int cell)
 {
     if (!_map.IsFloor(cell)) return false;
-    Instantiate(turretPrefab, _map.Tilemap.CellToWorld(cell), Quaternion.identity);
+    Instantiate(turretPrefab, _map.Tilemap.GetCellCenterWorld(cell), Quaternion.identity);
     return true;
 }
 ```
@@ -192,6 +192,7 @@ Calling `Generate()` a second time replaces `LastMap` with a new map and fires t
 **Expecting `FloorCells` to include the spawn or exit tile**
 `FloorCells` contains only `Floor`-typed tiles. Spawn and exit have their own tiles (`SpawnCell`, `ExitCell`). If you want all walkable tiles, combine them yourself:
 ```csharp
+// Requires: using System.Linq;
 var allWalkable = map.FloorCells
     .Append(map.SpawnCell)
     .Append(map.ExitCell)
