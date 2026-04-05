@@ -7,8 +7,11 @@ namespace DynamicDungeon.Unity
 {
     /// <summary>
     /// Snapshot of a generated dungeon map delivered to subscribers of
-    /// DungeonGeneratorComponent.OnMapGenerated. Fully self-contained —
-    /// store it and query it without holding a reference to the generator.
+    /// DungeonGeneratorComponent.OnMapGenerated. Store it and query it
+    /// without holding a reference to the generator. World positions are
+    /// pre-computed at construction and safe to read at any time. The
+    /// <see cref="Tilemap"/> property references the live Unity component —
+    /// if the scene is unloaded, do not use it.
     /// </summary>
     public class DungeonMap
     {
@@ -47,7 +50,6 @@ namespace DynamicDungeon.Unity
         public int Seed { get; }
 
         // ── Private ────────────────────────────────────────────────────────────
-        private readonly List<Vector3Int> _floorList;
         private readonly HashSet<Vector3Int> _floorSet;
         private readonly HashSet<Vector3Int> _wallSet;
         private readonly Random _random;
@@ -72,13 +74,13 @@ namespace DynamicDungeon.Unity
             Seed      = seed;
 
             // Defensive copies — caller's lists may be cleared on next generation.
+            var floorCopy = new List<Vector3Int>(floorCells);
             EnemyCells = new List<Vector3Int>(enemyCells).AsReadOnly();
-            FloorCells = new List<Vector3Int>(floorCells).AsReadOnly();
+            FloorCells = floorCopy.AsReadOnly();
             WallCells  = new List<Vector3Int>(wallCells).AsReadOnly();
             PathCells  = new List<Vector3Int>(pathCells).AsReadOnly();
 
-            _floorList = new List<Vector3Int>(floorCells);
-            _floorSet  = new HashSet<Vector3Int>(floorCells);
+            _floorSet  = new HashSet<Vector3Int>(floorCopy);
             _wallSet   = new HashSet<Vector3Int>(wallCells);
             _random    = new Random(seed);
 
@@ -104,9 +106,9 @@ namespace DynamicDungeon.Unity
         /// </summary>
         public Vector3Int GetRandomFloorCell()
         {
-            if (_floorList.Count == 0)
+            if (FloorCells.Count == 0)
                 throw new InvalidOperationException("[DungeonMap] No floor cells available.");
-            return _floorList[_random.Next(_floorList.Count)];
+            return FloorCells[_random.Next(FloorCells.Count)];
         }
 
         /// <summary>Returns the world position (cell centre) of a random floor cell.</summary>
