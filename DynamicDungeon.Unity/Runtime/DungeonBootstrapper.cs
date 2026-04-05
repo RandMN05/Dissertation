@@ -11,7 +11,6 @@ namespace DynamicDungeon.Unity
     {
         [Header("References")]
         public DungeonGeneratorComponent DungeonGenerator;
-        public Tilemap Tilemap;
 
         [Header("Prefabs")]
         [Tooltip("Needs PlayerController, Rigidbody2D, CircleCollider2D. Tag it as Player.")]
