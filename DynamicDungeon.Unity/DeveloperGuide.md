@@ -146,7 +146,7 @@ public bool TryPlaceTurret(Vector3Int cell)
 private void OnMapReady(DungeonMap map)
 {
     foreach (Vector3Int cell in map.PathCells)
-        Instantiate(highlightTile, map.Tilemap.CellToWorld(cell), Quaternion.identity);
+        Instantiate(highlightTile, map.Tilemap.GetCellCenterWorld(cell), Quaternion.identity);
 }
 ```
 
