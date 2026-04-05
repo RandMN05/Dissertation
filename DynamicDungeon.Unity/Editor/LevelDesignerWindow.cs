@@ -532,7 +532,6 @@ namespace DynamicDungeon.Unity.Editor
             var bootstrapper = bootstrapObj.AddComponent<DungeonBootstrapper>();
 
             bootstrapper.DungeonGenerator = generator;
-            bootstrapper.Tilemap          = tilemap;
             bootstrapper.LevelData        = data;
             bootstrapper.NextSceneName    = BuildNextSceneName(index);
             // PlayerPrefab / EnemyPrefab left null — developer fills in
