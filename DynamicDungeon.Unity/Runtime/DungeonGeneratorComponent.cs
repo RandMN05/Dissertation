@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.Tilemaps;
 using DynamicDungeon.Core;
 using DynamicDungeon.Core.Models;
@@ -63,6 +65,29 @@ namespace DynamicDungeon.Unity
         public long LastGenerationMs => _lastGenerationMs;
         /// <summary>The seed that was actually used (useful when Seed was 0 / random).</summary>
         public int LastSeedUsed => _lastSeedUsed;
+
+        // ── Developer API ──────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The map produced by the most recent Generate() call.
+        /// Null before the first generation. Use OnMapGenerated to react at the
+        /// moment generation completes rather than polling this property.
+        /// </summary>
+        public DungeonMap LastMap { get; private set; }
+
+        /// <summary>
+        /// Fired at the end of every Generate() call. The DungeonMap argument
+        /// contains every tile position, world position, and query helper you need.
+        /// Subscribe in Awake() to guarantee you don't miss the first generation.
+        /// </summary>
+        public event Action<DungeonMap> OnMapGenerated;
+
+        /// <summary>
+        /// Inspector-wirable event fired immediately after OnMapGenerated.
+        /// No map data is passed — use OnMapGenerated (C# event) if you need the map.
+        /// </summary>
+        [Header("Events")]
+        public UnityEvent OnGenerationComplete = new UnityEvent();
 
         private Tilemap _tilemap;
 
@@ -162,8 +187,9 @@ namespace DynamicDungeon.Unity
             _enemyCells.Clear();
             _pathCells.Clear();
 
-            // Build a fast lookup for path cells so we can colour them later.
-            var pathSet = new HashSet<(int, int)>(map.ShortestPath);
+            var pathSet    = new HashSet<(int, int)>(map.ShortestPath);
+            var floorCells = new List<Vector3Int>();
+            var wallCells  = new List<Vector3Int>();
 
             for (int x = 0; x < map.Width; x++)
             for (int y = 0; y < map.Height; y++)
@@ -175,8 +201,12 @@ namespace DynamicDungeon.Unity
                 var cell = new Vector3Int(x, y, 0);
                 _tilemap.SetTile(cell, unityTile);
 
-                if (coreTile == CoreTile.Enemy)
-                    _enemyCells.Add(cell);
+                switch (coreTile)
+                {
+                    case CoreTile.Floor: floorCells.Add(cell);  break;
+                    case CoreTile.Wall:  wallCells.Add(cell);   break;
+                    case CoreTile.Enemy: _enemyCells.Add(cell); break;
+                }
 
                 if (pathSet.Contains((x, y)))
                     _pathCells.Add(cell);
@@ -185,7 +215,14 @@ namespace DynamicDungeon.Unity
             _spawnCell = new Vector3Int(map.SpawnPoint.x, map.SpawnPoint.y, 0);
             _exitCell  = new Vector3Int(map.ExitPoint.x,  map.ExitPoint.y,  0);
 
-            // Centre the camera on the map (runtime only).
+            LastMap = new DungeonMap(
+                _spawnCell, _exitCell,
+                _enemyCells, floorCells, wallCells, _pathCells,
+                _tilemap, map.Width, map.Height, _lastSeedUsed);
+
+            OnMapGenerated?.Invoke(LastMap);
+            OnGenerationComplete?.Invoke();
+
             if (Application.isPlaying)
                 CentreCamera();
         }
