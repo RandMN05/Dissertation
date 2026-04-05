@@ -122,7 +122,7 @@ namespace DynamicDungeon.Unity
         {
             _tilemap = GetComponent<Tilemap>();
 
-            int seed = Seed == 0 ? Random.Range(1, int.MaxValue) : Seed;
+            int seed = Seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : Seed;
             _lastSeedUsed = seed;
 
             var parameters = new GenerationParameters
