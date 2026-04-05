@@ -52,7 +52,7 @@ namespace DynamicDungeon.Unity
         // ── Private ────────────────────────────────────────────────────────────
         private readonly HashSet<Vector3Int> _floorSet;
         private readonly HashSet<Vector3Int> _wallSet;
-        private readonly Random _random;
+        private readonly System.Random _random;
 
         internal DungeonMap(
             Vector3Int spawnCell,
@@ -82,7 +82,7 @@ namespace DynamicDungeon.Unity
 
             _floorSet  = new HashSet<Vector3Int>(floorCopy);
             _wallSet   = new HashSet<Vector3Int>(wallCells);
-            _random    = new Random(seed);
+            _random    = new System.Random(seed);
 
             // Pre-compute world positions once.
             SpawnWorld = CellCentre(spawnCell);
