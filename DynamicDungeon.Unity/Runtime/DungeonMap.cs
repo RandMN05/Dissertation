@@ -97,7 +97,11 @@ namespace DynamicDungeon.Unity
 
         // ── Query helpers ──────────────────────────────────────────────────────
 
-        /// <summary>Returns a random walkable floor cell. Same seed = same sequence.</summary>
+        /// <summary>
+        /// Returns a random walkable floor cell using a System.Random seeded from <see cref="Seed"/>.
+        /// Successive calls advance the sequence — the first call always returns the same cell
+        /// for the same seed and floor layout.
+        /// </summary>
         public Vector3Int GetRandomFloorCell()
         {
             if (_floorList.Count == 0)
@@ -114,6 +118,8 @@ namespace DynamicDungeon.Unity
         /// <summary>True if the cell is a wall tile.</summary>
         public bool IsWall(Vector3Int cell) => _wallSet.Contains(cell);
 
+        // Note: assumes default tileAnchor of (0,0,0). If tileAnchor is customised,
+        // world positions will be offset by the anchor delta.
         private Vector3 CellCentre(Vector3Int cell)
             => Tilemap.CellToWorld(cell) + Tilemap.cellSize / 2f;
     }
