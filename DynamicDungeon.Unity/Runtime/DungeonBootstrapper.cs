@@ -44,18 +44,20 @@ namespace DynamicDungeon.Unity
             else
                 DungeonGenerator.Generate();
 
-            var spawnWorld = CellToWorld(DungeonGenerator.SpawnCell);
+            // LastMap is populated synchronously by Generate() / LoadFrom().
+            var map = DungeonGenerator.LastMap;
+
             if (PlayerPrefab != null)
             {
-                _player     = Instantiate(PlayerPrefab, spawnWorld, Quaternion.identity);
+                _player     = Instantiate(PlayerPrefab, map.SpawnWorld, Quaternion.identity);
                 _player.tag = "Player";
             }
 
             if (EnemyPrefab != null)
-                foreach (var cell in DungeonGenerator.EnemyCells)
-                    Instantiate(EnemyPrefab, CellToWorld(cell), Quaternion.identity);
+                foreach (var worldPos in map.EnemyWorldPositions)
+                    Instantiate(EnemyPrefab, worldPos, Quaternion.identity);
 
-            _exitWorldPos = CellToWorld(DungeonGenerator.ExitCell);
+            _exitWorldPos = map.ExitWorld;
         }
 
         private void Update()
@@ -110,7 +112,5 @@ namespace DynamicDungeon.Unity
                 rb.linearVelocity = Vector2.zero;
         }
 
-        private Vector3 CellToWorld(Vector3Int cell)
-            => Tilemap.CellToWorld(cell) + Tilemap.cellSize / 2f;
     }
 }
