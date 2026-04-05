@@ -201,3 +201,58 @@ var allWalkable = map.FloorCells
 
 **Using `PathCells` when it's empty**
 `PathCells` is only populated when `ComputeShortestPath` is enabled on `DungeonGeneratorComponent`. Check `map.PathCells.Count > 0` before using it.
+
+---
+
+## Wall Collisions
+
+The package does not add physics colliders — this is intentional. Some games need collidable walls, others don't. Pick the option that suits your game.
+
+### Option A — Tilemap Collider 2D (recommended, no code)
+
+The simplest approach. In the Unity Inspector, select the Tilemap GameObject and add these components:
+
+1. **Tilemap Collider 2D** — Unity automatically generates a collider for every tile that has a sprite assigned. Walls become solid instantly.
+2. **Composite Collider 2D** *(optional but recommended)* — Merges all individual tile colliders into one shape. Better performance, especially on large maps. Adding this also adds a **Rigidbody2D** — set its **Body Type** to **Static**.
+
+Your player and enemy prefabs need a **Rigidbody2D** (and a collider like **CircleCollider2D**) for the physics interaction to work.
+
+> This is the approach used by the built-in `PlayerController` and `EnemyController` reference scripts.
+
+### Option B — Code-driven colliders using `WallCells`
+
+Use this if you need programmatic control — custom collider shapes, trigger zones on walls, or walls that change at runtime.
+
+```csharp
+// wallColliderPrefab = empty GameObject with a BoxCollider2D
+// sized to match your tile size (e.g. 1x1 units)
+
+private void OnMapReady(DungeonMap map)
+{
+    foreach (var cell in map.WallCells)
+    {
+        Vector3 worldPos = map.Tilemap.GetCellCenterWorld(cell);
+        Instantiate(wallColliderPrefab, worldPos, Quaternion.identity);
+    }
+}
+```
+
+`map.WallCells` gives you every wall tile — you can also filter it, pass it to a pathfinding system, or use it to build a spatial grid for your own collision logic.
+
+### Option C — No colliders
+
+Completely valid for games that don't need physics-based walls — for example:
+- Grid-locked movement (the game prevents moving to a wall cell by checking `map.IsWall()`)
+- Raycasting-based collision
+- Games where the dungeon is purely visual
+
+```csharp
+// Grid-locked movement example — no physics needed
+private void TryMove(Vector3Int direction)
+{
+    var target = currentCell + direction;
+    if (_map.IsWall(target)) return; // blocked
+    currentCell = target;
+    transform.position = _map.Tilemap.GetCellCenterWorld(currentCell);
+}
+```
