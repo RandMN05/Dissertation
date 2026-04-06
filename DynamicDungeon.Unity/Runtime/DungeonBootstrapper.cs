@@ -38,9 +38,16 @@ namespace DynamicDungeon.Unity
             // Load from the saved asset (guaranteed same map every time) or
             // fall back to whatever is configured on the generator directly.
             if (LevelData != null)
+            {
                 DungeonGenerator.LoadFrom(LevelData);
+            }
             else
+            {
+                Debug.LogError("[DungeonBootstrapper] LevelData is null — the saved asset reference is broken. " +
+                    "Re-save this level via Window → DynamicDungeon → Level Designer. " +
+                    "Falling back to the generator's baked-in settings.");
                 DungeonGenerator.Generate();
+            }
 
             // LastMap is populated synchronously by Generate() / LoadFrom().
             var map = DungeonGenerator.LastMap;

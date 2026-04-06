@@ -123,7 +123,6 @@ namespace DynamicDungeon.Unity
             _tilemap = GetComponent<Tilemap>();
 
             int seed = Seed == 0 ? UnityEngine.Random.Range(1, int.MaxValue) : Seed;
-            _lastSeedUsed = seed;
 
             var parameters = new GenerationParameters
             {
@@ -154,6 +153,10 @@ namespace DynamicDungeon.Unity
                 throw;
             }
 
+            // Store the seed that actually produced the valid map, not the initial input seed.
+            // These differ when the first attempt(s) fail validation and the retry loop
+            // advances to seed+N. Saving the successful seed avoids unnecessary retries at runtime.
+            _lastSeedUsed = report.SuccessfulSeed;
             _lastGenerationMs = report.TotalMs;
             LogReport(report, succeeded: true);
             ApplyToTilemap(map);

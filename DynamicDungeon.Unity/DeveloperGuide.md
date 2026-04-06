@@ -53,41 +53,41 @@ That's it. The `DungeonMap` object passed to your callback contains everything l
 
 ### Tile-Space Properties (Tilemap cells)
 
-| Property | Type | Description |
-|---|---|---|
-| `SpawnCell` | `Vector3Int` | Tilemap cell of the player spawn point |
-| `ExitCell` | `Vector3Int` | Tilemap cell of the level exit |
-| `EnemyCells` | `IReadOnlyList<Vector3Int>` | All enemy spawn marker cells |
-| `FloorCells` | `IReadOnlyList<Vector3Int>` | All walkable floor cells |
-| `WallCells` | `IReadOnlyList<Vector3Int>` | All wall cells |
-| `PathCells` | `IReadOnlyList<Vector3Int>` | A* shortest path from spawn to exit (empty if `ComputeShortestPath` was false) |
+| Property     | Type                        | Description                                                                     |
+| ------------ | --------------------------- | ------------------------------------------------------------------------------- |
+| `SpawnCell`  | `Vector3Int`                | Tilemap cell of the player spawn point                                          |
+| `ExitCell`   | `Vector3Int`                | Tilemap cell of the level exit                                                  |
+| `EnemyCells` | `IReadOnlyList<Vector3Int>` | All enemy spawn marker cells                                                    |
+| `FloorCells` | `IReadOnlyList<Vector3Int>` | All walkable floor cells                                                        |
+| `WallCells`  | `IReadOnlyList<Vector3Int>` | All wall cells                                                                  |
+| `PathCells`  | `IReadOnlyList<Vector3Int>` | A\* shortest path from spawn to exit (empty if `ComputeShortestPath` was false) |
 
 ### World-Space Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `SpawnWorld` | `Vector3` | World position (cell centre) of the spawn point |
-| `ExitWorld` | `Vector3` | World position (cell centre) of the exit |
-| `EnemyWorldPositions` | `IReadOnlyList<Vector3>` | World positions of all enemy cells |
-| `FloorWorldPositions` | `IReadOnlyList<Vector3>` | World positions of all floor cells |
+| Property              | Type                     | Description                                     |
+| --------------------- | ------------------------ | ----------------------------------------------- |
+| `SpawnWorld`          | `Vector3`                | World position (cell centre) of the spawn point |
+| `ExitWorld`           | `Vector3`                | World position (cell centre) of the exit        |
+| `EnemyWorldPositions` | `IReadOnlyList<Vector3>` | World positions of all enemy cells              |
+| `FloorWorldPositions` | `IReadOnlyList<Vector3>` | World positions of all floor cells              |
 
 ### Map Info
 
-| Property | Type | Description |
-|---|---|---|
-| `Tilemap` | `Tilemap` | The live Tilemap this map was rendered onto |
-| `Width` | `int` | Map width in tiles |
-| `Height` | `int` | Map height in tiles |
-| `Seed` | `int` | The actual seed used — assign to `DungeonGeneratorComponent.Seed` and call `Generate()` again to reproduce this exact map. Do not leave `Seed` at 0, as that triggers random re-seeding. |
+| Property  | Type      | Description                                                                                                                                                                              |
+| --------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tilemap` | `Tilemap` | The live Tilemap this map was rendered onto                                                                                                                                              |
+| `Width`   | `int`     | Map width in tiles                                                                                                                                                                       |
+| `Height`  | `int`     | Map height in tiles                                                                                                                                                                      |
+| `Seed`    | `int`     | The actual seed used — assign to `DungeonGeneratorComponent.Seed` and call `Generate()` again to reproduce this exact map. Do not leave `Seed` at 0, as that triggers random re-seeding. |
 
 ### Methods
 
-| Method | Returns | Description |
-|---|---|---|
-| `GetRandomFloorCell()` | `Vector3Int` | A random walkable floor cell |
-| `GetRandomFloorWorld()` | `Vector3` | World position of a random floor cell |
-| `IsFloor(Vector3Int cell)` | `bool` | True if the cell is a walkable floor tile |
-| `IsWall(Vector3Int cell)` | `bool` | True if the cell is a wall tile |
+| Method                     | Returns      | Description                               |
+| -------------------------- | ------------ | ----------------------------------------- |
+| `GetRandomFloorCell()`     | `Vector3Int` | A random walkable floor cell              |
+| `GetRandomFloorWorld()`    | `Vector3`    | World position of a random floor cell     |
+| `IsFloor(Vector3Int cell)` | `bool`       | True if the cell is a walkable floor tile |
+| `IsWall(Vector3Int cell)`  | `bool`       | True if the cell is a wall tile           |
 
 > `GetRandomFloorCell()` and `GetRandomFloorWorld()` use a `System.Random` seeded from `Seed`, so the same seed always produces the same sequence of random picks.
 
@@ -166,7 +166,7 @@ private void OnMapReady(DungeonMap map)
 
 ## Execution Order — Why `Awake`?
 
-Unity calls all `Awake()` methods before any `Start()` method. `DungeonBootstrapper.Start()` triggers map generation. If your script subscribes to `OnMapGenerated` in its own `Start()`, it may run *after* `DungeonBootstrapper.Start()` — and you miss the event entirely.
+Unity calls all `Awake()` methods before any `Start()` method. `DungeonBootstrapper.Start()` triggers map generation. If your script subscribes to `OnMapGenerated` in its own `Start()`, it may run _after_ `DungeonBootstrapper.Start()` — and you miss the event entirely.
 
 ```
 Frame 1:
@@ -191,6 +191,7 @@ Calling `Generate()` a second time replaces `LastMap` with a new map and fires t
 
 **Expecting `FloorCells` to include the spawn or exit tile**
 `FloorCells` contains only `Floor`-typed tiles. Spawn and exit have their own tiles (`SpawnCell`, `ExitCell`). If you want all walkable tiles, combine them yourself:
+
 ```csharp
 // Requires: using System.Linq;
 var allWalkable = map.FloorCells
@@ -213,7 +214,7 @@ The package does not add physics colliders — this is intentional. Some games n
 The simplest approach. In the Unity Inspector, select the Tilemap GameObject and add these components:
 
 1. **Tilemap Collider 2D** — Unity automatically generates a collider for every tile that has a sprite assigned. Walls become solid instantly.
-2. **Composite Collider 2D** *(optional but recommended)* — Merges all individual tile colliders into one shape. Better performance, especially on large maps. Adding this also adds a **Rigidbody2D** — set its **Body Type** to **Static**.
+2. **Composite Collider 2D** _(optional but recommended)_ — Merges all individual tile colliders into one shape. Better performance, especially on large maps. Adding this also adds a **Rigidbody2D** — set its **Body Type** to **Static**.
 
 Your player and enemy prefabs need a **Rigidbody2D** (and a collider like **CircleCollider2D**) for the physics interaction to work.
 
@@ -242,6 +243,7 @@ private void OnMapReady(DungeonMap map)
 ### Option C — No colliders
 
 Completely valid for games that don't need physics-based walls — for example:
+
 - Grid-locked movement (the game prevents moving to a wall cell by checking `map.IsWall()`)
 - Raycasting-based collision
 - Games where the dungeon is purely visual

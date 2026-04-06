@@ -496,11 +496,42 @@ namespace DynamicDungeon.Unity.Editor
             // ── Create level scene ─────────────────────────────────────────
             CreateLevelScene(index, data, scenePath);
 
+            // Single Refresh per level, after both the asset and scene are
+            // fully written. Calling Refresh inside CreateLevelScene while
+            // SaveAll loops over levels caused mid-sequence reimports that
+            // broke serialised cross-asset references (GUID mismatches).
+            AssetDatabase.Refresh();
+
             Debug.Log($"[LevelDesigner] Level {index + 1} saved → {assetPath} + {scenePath}  (seed {data.Seed})");
         }
 
         private void CreateLevelScene(int index, DungeonLevelData data, string scenePath)
         {
+            // Re-fetch from the asset database to guarantee a live reference.
+            // AssetDatabase operations between SaveLevel and here (e.g. SaveAssets)
+            // can invalidate the in-memory ScriptableObject instance, causing
+            // bootstrapper.LevelData to serialise as {fileID: 0} (null) in the scene.
+            string dataPath = AssetDatabase.GetAssetPath(data);
+            if (!string.IsNullOrEmpty(dataPath))
+                data = AssetDatabase.LoadAssetAtPath<DungeonLevelData>(dataPath) ?? data;
+
+            // Unity blocks NewScene(Additive) if any loaded scene is untitled (no path).
+            // Instead of destroying the user's working scene with NewScene(Single), we give
+            // every untitled scene a real path by saving it to a workspace file. This keeps
+            // all scene objects (including _generator) alive and allows Additive mode.
+            EnsureFolderExists(_saveFolder);
+            int loadedCount = UnityEngine.SceneManagement.SceneManager.sceneCount;
+            for (int si = 0; si < loadedCount; si++)
+            {
+                var s = UnityEngine.SceneManagement.SceneManager.GetSceneAt(si);
+                if (string.IsNullOrEmpty(s.path))
+                {
+                    string workspacePath = $"{_saveFolder}/_preview_workspace.unity";
+                    EditorSceneManager.SaveScene(s, workspacePath);
+                    // _generator still points to the same component — only the path changed.
+                }
+            }
+
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
 
             // Grid → Tilemap
@@ -526,6 +557,14 @@ namespace DynamicDungeon.Unity.Editor
             generator.ExitTile   = data.ExitTile;
             generator.EnemyTile  = data.EnemyTile;
 
+            // Bake the map into the tilemap now so the scene shows the correct
+            // layout in the editor without needing to enter Play mode.
+            // At runtime DungeonBootstrapper re-generates from the same seed,
+            // producing an identical map (deterministic), so editor and runtime views match.
+            generator.Generate();
+            EditorUtility.SetDirty(tilemap);
+            EditorUtility.SetDirty(generator);
+
             // Bootstrapper
             var bootstrapObj = new GameObject("DungeonBootstrapper");
             UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(bootstrapObj, scene);
@@ -537,9 +576,11 @@ namespace DynamicDungeon.Unity.Editor
             // PlayerPrefab / EnemyPrefab left null — developer fills in
 
             EditorSceneManager.SaveScene(scene, scenePath);
-            EditorSceneManager.CloseScene(scene, true);
+            // Re-fetch the handle by path: SaveScene with a new path can invalidate
+            // the handle returned by NewScene, causing CloseScene to fail silently.
+            var sceneToClose = EditorSceneManager.GetSceneByPath(scenePath);
+            EditorSceneManager.CloseScene(sceneToClose.IsValid() ? sceneToClose : scene, true);
             AddSceneToBuildSettings(scenePath);
-            AssetDatabase.Refresh();
         }
 
         private string BuildNextSceneName(int currentIndex)
