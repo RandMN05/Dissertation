@@ -67,18 +67,17 @@ namespace DynamicDungeon.Core.Algorithms
             };
 
         // Per-biome tile weights (integer percentages; only ratios matter).
-        //
-        //   Dungeon (45% open): Floor and WallInterior compete at near-equal weight (~0.9:1),
-        //     producing large irregular open areas separated by equally large solid wall masses.
-        //   Cave    (60% open): Floor-dominant (~2:1 over WallInterior) — spacious open areas
-        //     with thinner wall masses.
-        //   Ruins   (52% open): balanced — moderate wall masses and open courtyards.
+        // Weights must be sufficiently separated so the biome difference survives
+        // constraint propagation. Floor/(Floor+WallInterior) ratios:
+        //   Cave    ≈ 76% open — strongly Floor-dominant, spacious open areas with thin walls.
+        //   Ruins   ≈ 46% open — balanced, moderate wall masses and open courtyards.
+        //   Dungeon ≈ 23% open — strongly WallInterior-dominant, tight corridors and dense walls.
         private static (int floor, int wall, int wallInterior) GetWeights(BiomeType biome) =>
             biome switch
             {
-                BiomeType.Cave => (40, 8, 52),
-                BiomeType.Ruins => (34, 7, 59),
-                _ => (28, 5, 67),
+                BiomeType.Cave => (70, 8, 22),
+                BiomeType.Ruins => (42, 8, 50),
+                _ => (22, 5, 73),
             };
 
         private static int TileWeight(WfcTile t, (int floor, int wall, int wallInterior) w) =>
