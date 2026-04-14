@@ -124,7 +124,7 @@ namespace DynamicDungeon.Core.Tests
         private void WriteCsv(string fileName, IEnumerable<(string Label, BenchmarkResult Result)> rows)
         {
             var path = Path.Combine(AppContext.BaseDirectory, fileName);
-            using var w = new StreamWriter(path);
+            using var w = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite));
             w.WriteLine("Scenario,MinMs,MaxMs,AvgMs,MedianMs,P95Ms,TotalGenerationFailures,AvgRetries,MaxRetries,TotalRuns");
             foreach (var (label, r) in rows)
             {

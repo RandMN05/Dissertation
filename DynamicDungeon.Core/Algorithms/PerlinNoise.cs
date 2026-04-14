@@ -13,8 +13,8 @@ namespace DynamicDungeon.Core.Algorithms
         // Higher threshold = more floor tiles = better connectivity.
         // Smaller scale = larger, smoother regions = easier to connect.
         private static readonly (double threshold, double scale) DungeonSettings = (0.55, 2.0);
-        private static readonly (double threshold, double scale) CaveSettings    = (0.60, 1.5);
-        private static readonly (double threshold, double scale) RuinsSettings   = (0.50, 3.5);
+        private static readonly (double threshold, double scale) CaveSettings    = (0.50, 1.5);
+        private static readonly (double threshold, double scale) RuinsSettings   = (0.60, 3.5);
 
         private static readonly int[] EnemyCountByDifficulty = { 3, 6, 12 };
 

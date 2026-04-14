@@ -9,10 +9,15 @@ namespace DynamicDungeon.Core.Algorithms
     public class CellularAutomata : IMapAlgorithm
     {
         // Biome-specific tuning: initial fill probability (0-100) and smoothing iterations.
-        // Higher fill % = more walls = tighter corridors.
+        // Higher fill % = more walls = fewer floor tiles.
+        // Ruins uses the lowest fill (most open — collapsed structures with open areas),
+        // Dungeon is middle (structured rooms and corridors),
+        // Cave uses the highest fill (least open — dense rocky walls with carved passages).
+        // Values above ~50% exceed the Moore-neighbourhood percolation threshold and
+        // produce permanently fragmented maps regardless of seed.
         private static readonly (int fillPercent, int iterations) DungeonSettings = (45, 5);
-        private static readonly (int fillPercent, int iterations) CaveSettings    = (55, 4);
-        private static readonly (int fillPercent, int iterations) RuinsSettings   = (40, 6);
+        private static readonly (int fillPercent, int iterations) CaveSettings    = (47, 4);
+        private static readonly (int fillPercent, int iterations) RuinsSettings   = (38, 6);
 
         // Difficulty scales enemy count (Enemy tiles replace some Floor tiles post-generation).
         private static readonly int[] EnemyCountByDifficulty = { 3, 6, 12 }; // Easy/Medium/Hard
