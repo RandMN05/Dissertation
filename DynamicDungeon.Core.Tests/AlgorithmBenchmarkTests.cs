@@ -124,15 +124,22 @@ namespace DynamicDungeon.Core.Tests
         private void WriteCsv(string fileName, IEnumerable<(string Label, BenchmarkResult Result)> rows)
         {
             var path = Path.Combine(AppContext.BaseDirectory, fileName);
-            using var w = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite));
-            w.WriteLine("Scenario,MinMs,MaxMs,AvgMs,MedianMs,P95Ms,TotalGenerationFailures,AvgRetries,MaxRetries,TotalRuns");
-            foreach (var (label, r) in rows)
+            try
             {
-                w.WriteLine(
-                    $"{label},{r.MinMs},{r.MaxMs},{r.AvgMs:F2},{r.MedianMs:F2},{r.P95Ms:F2}," +
-                    $"{r.TotalGenerationFailures},{r.AvgRetries:F2},{r.MaxRetries},{r.TotalRuns}");
+                using var w = new StreamWriter(path, append: false);
+                w.WriteLine("Scenario,MinMs,MaxMs,AvgMs,MedianMs,P95Ms,TotalGenerationFailures,AvgRetries,MaxRetries,TotalRuns");
+                foreach (var (label, r) in rows)
+                {
+                    w.WriteLine(
+                        $"{label},{r.MinMs},{r.MaxMs},{r.AvgMs:F2},{r.MedianMs:F2},{r.P95Ms:F2}," +
+                        $"{r.TotalGenerationFailures},{r.AvgRetries:F2},{r.MaxRetries},{r.TotalRuns}");
+                }
+                _output.WriteLine($"\n  CSV → {path}");
             }
-            _output.WriteLine($"\n  CSV → {path}");
+            catch (IOException ex)
+            {
+                _output.WriteLine($"\n  [Warning] Could not write CSV ({fileName}): {ex.Message}");
+            }
         }
 
         // ─── Tests ───────────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ namespace DynamicDungeon.Core.Algorithms
         // Values above ~50% exceed the Moore-neighbourhood percolation threshold and
         // produce permanently fragmented maps regardless of seed.
         private static readonly (int fillPercent, int iterations) DungeonSettings = (45, 5);
-        private static readonly (int fillPercent, int iterations) CaveSettings    = (47, 4);
+        private static readonly (int fillPercent, int iterations) CaveSettings    = (46, 5);
         private static readonly (int fillPercent, int iterations) RuinsSettings   = (38, 6);
 
         // Difficulty scales enemy count (Enemy tiles replace some Floor tiles post-generation).
