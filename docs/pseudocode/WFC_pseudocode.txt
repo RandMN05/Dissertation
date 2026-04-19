@@ -1,0 +1,162 @@
+// Wave Function Collapse Pseudocode
+// Source: DynamicDungeon.Core/Algorithms/WaveFunctionCollapse.cs
+
+// WFC uses three internal tile types during generation.
+// These are different from the final map tiles — they only exist while the map is being built.
+//   Floor        — open walkable space
+//   Wall         — a thin boundary tile, legal between open and solid regions
+//   WallInterior — solid wall mass, can only sit next to Wall or other WallInterior tiles
+
+// Adjacency rules define what tile types are allowed next to each other.
+// These rules are what give WFC its structured, room-like appearance.
+adjacencyRules = {
+    Floor:        can be next to  Floor, Wall
+    Wall:         can be next to  Floor, Wall, WallInterior
+    WallInterior: can be next to  Wall,  WallInterior
+}
+
+// Biome weights control how likely each tile type is to be chosen during collapse.
+// Higher floor weight = more open space. Higher wallInterior weight = denser walls.
+biomeWeights = {
+    Dungeon: floor = 42,  wall = 8,  wallInterior = 50
+    Cave:    floor = 22,  wall = 5,  wallInterior = 73
+    Ruins:   floor = 70,  wall = 8,  wallInterior = 22
+}
+
+enemyCount = { Easy: 3, Medium: 6, Hard: 12 }
+
+
+function Generate(params):
+
+    try up to 50 times (each attempt uses seed + attempt number):
+        result = TryGenerate(params, seed + attempt)
+        if result is valid, return it
+
+    if all 50 attempts fail:
+        fall back to Cellular Automata to guarantee a result
+
+
+function TryGenerate(params, seed):
+
+    create a random number generator using the seed
+    look up tile weights for the chosen biome
+
+    initialise the superposition grid:
+        for every cell on the border: set candidates = { Wall } only
+        for every interior cell:      set candidates = { Floor, Wall, WallInterior }
+    // "superposition" means each cell holds all tile types it could still become
+
+    pre-collapse the top-left and bottom-right interior corners to Floor
+    propagate constraints outward from each of those two corners
+    // anchoring these corners nudges the algorithm toward a connected map
+    // without hard-coding a path between them
+    if either propagation finds a contradiction, return null (failed attempt)
+
+    repeat until all cells are collapsed:
+        find the uncollapsed cell with the lowest entropy (fewest meaningful options)
+        if no such cell exists, all cells are collapsed — stop the loop
+
+        from that cell's remaining candidates, pick one tile type using weighted random
+        collapse the cell to that single tile type
+
+        propagate the constraint change outward to neighbours
+        if propagation finds a contradiction, return null (failed attempt)
+
+    convert the superposition grid to a real map:
+        Floor        → Floor tile
+        Wall or WallInterior → Wall tile
+
+    place spawn and exit points on floor tiles
+    run a flood fill from the spawn point to check the exit is reachable
+    if the exit is not reachable, return null (failed attempt — map is disconnected)
+
+    place enemies on remaining floor tiles
+    return the finished map
+
+
+function PickLowestEntropy(superposition):
+
+    for every cell that is not yet fully collapsed:
+        calculate its Shannon entropy based on the weights of its remaining candidates
+        // entropy is low when one option is overwhelmingly likely
+        // entropy is high when all options are equally likely
+
+    find the minimum entropy value across all uncollapsed cells
+    collect all cells that share that minimum entropy
+    return one of them at random
+    // breaking ties randomly prevents repeating patterns
+
+
+function ShannonEntropy(candidates, weights):
+
+    calculate the total weight of all remaining candidates
+    for each candidate:
+        p = that candidate's weight divided by the total weight
+        subtract p × log(p) from a running sum
+    return the running sum
+    // a higher result means more uncertainty; a lower result means near-decided
+
+
+function PickWeighted(candidates, weights):
+
+    calculate the total weight of all candidates
+    roll a random number between 0 and that total
+    walk through the candidates, accumulating their weights
+    return whichever candidate pushes the running total past the roll
+
+
+function Propagate(superposition, startCell):
+
+    add startCell to a stack of cells to process
+
+    while the stack is not empty:
+        take a cell off the stack
+
+        for each of its 4 cardinal neighbours:
+            if the neighbour is outside the map boundary, skip it
+
+            work out which tile types are still allowed in the neighbour:
+                for each candidate still remaining in the current cell:
+                    look up what that tile type permits in this direction
+                    add those permitted types to an "allowed" set
+
+            remove any candidates from the neighbour that are not in the allowed set
+            // this is the constraint being enforced
+
+            if the neighbour now has zero candidates, return false (contradiction)
+            if the neighbour lost any candidates, add it to the stack
+            // it may now further restrict its own neighbours
+
+    return true (propagation completed without contradiction)
+
+
+function FindFloorTile(map, scanFromBottomLeft):
+
+    if scanning from the bottom-left:
+        go through each row from top to bottom
+            go through each column from left to right
+                if the current cell is a floor tile, return its position
+
+    if scanning from the top-right:
+        go through each row from bottom to top
+            go through each column from right to left
+                if the current cell is a floor tile, return its position
+
+    if no floor tile is found, return a default corner position
+    // this is a fallback — if it triggers, the map will likely fail validation and regenerate
+
+
+function PlaceSpawnAndExit(map):
+
+    spawnPoint = FindFloorTile(map, scanFromBottomLeft: true)
+    exitPoint  = FindFloorTile(map, scanFromBottomLeft: false)
+
+    mark spawnPoint as the Spawn tile
+    mark exitPoint  as the Exit tile
+
+
+function PlaceEnemies(map, count):
+
+    repeat until [count] enemies are placed (or too many failed attempts):
+        pick a random interior cell (not on the border)
+        if it is a floor tile, place an enemy there

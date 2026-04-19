@@ -1,0 +1,66 @@
+// A* Pathfinding Pseudocode
+
+// A* with a Manhattan distance heuristic and cardinal movement only.
+// Returns the shortest walkable path from start to end as an ordered list of positions,
+// or an empty list if no path exists.
+
+cardinalDirections = [(0,+1), (0,-1), (+1,0), (-1,0)]
+
+
+function FindPath(map, start, end):
+
+    create an empty open set (priority queue ordered by F score)
+    create gScore map        // cheapest known cost from start to each position
+    create cameFrom map      // tracks which position each position was reached from
+
+    gScore[start] = 0
+    add start to open set with F = Heuristic(start, end)
+
+    while the open set is not empty:
+
+        current = the node in the open set with the lowest F score
+
+        if current.position == end:
+            return ReconstructPath(cameFrom, end)   // goal reached
+
+        remove current from the open set
+
+        for each direction (dx, dy) in cardinalDirections:
+            neighbour = (current.x + dx, current.y + dy)
+
+            if neighbour is out of bounds:          skip
+            if the tile at neighbour is a Wall:     skip
+
+            tentativeG = gScore[current.position] + 1
+            // all steps cost 1 — the map has uniform movement cost
+
+            if gScore[neighbour] already exists and tentativeG >= gScore[neighbour]:
+                skip    // we already have an equal or better route to this neighbour
+
+            gScore[neighbour]   = tentativeG
+            cameFrom[neighbour] = current.position
+
+            F = tentativeG + Heuristic(neighbour, end)
+            add neighbour to the open set with score F
+
+    return empty list   // no path found — end is unreachable from start
+
+
+function Heuristic(a, b):
+
+    return |a.x - b.x| + |a.y - b.y|
+    // Manhattan distance: accurate for cardinal-only movement, never overestimates,
+    // so A* is guaranteed to find the optimal path
+
+
+function ReconstructPath(cameFrom, current):
+
+    path = empty list
+
+    while current exists in cameFrom:
+        append current to path
+        current = cameFrom[current]
+
+    append current to path      // include the start position
+    reverse path                // cameFrom traces backwards, so reverse gives start → end order
+    return path

@@ -1,0 +1,37 @@
+// Flood Fill Pseudocode
+
+// BFS flood fill starting from the spawn point.
+// Used by MapValidator to confirm the Exit is reachable from Spawn.
+
+cardinalDirections = [(0,+1), (0,-1), (+1,0), (-1,0)]
+// Diagonals are excluded — the map uses cardinal movement throughout,
+// so flood fill matches the same movement model.
+
+
+function GetReachable(map, startX, startY):
+
+    create an empty visited set
+    create an empty queue
+
+    mark (startX, startY) as visited
+    enqueue (startX, startY)
+    // seed both structures before the loop so the start cell is included in the result
+
+    while the queue is not empty:
+
+        dequeue the next cell (cx, cy)
+
+        for each direction (dx, dy) in cardinalDirections:
+            nx = cx + dx
+            ny = cy + dy
+
+            if (nx, ny) is out of bounds:       skip
+            if the tile at (nx, ny) is a Wall:  skip
+            if (nx, ny) is already visited:     skip
+
+            mark (nx, ny) as visited
+            enqueue (nx, ny)
+            // visiting before enqueuing ensures the same cell is never queued twice
+
+    return visited
+    // the caller (MapValidator) checks whether ExitPoint is contained in this set

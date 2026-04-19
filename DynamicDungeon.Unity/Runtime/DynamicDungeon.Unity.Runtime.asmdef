@@ -1,7 +1,9 @@
 {
     "name": "DynamicDungeon.Unity.Runtime",
     "rootNamespace": "DynamicDungeon.Unity",
-    "references": [],
+    "references": [
+        "Unity.InputSystem"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

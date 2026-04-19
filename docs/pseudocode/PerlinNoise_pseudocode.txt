@@ -1,0 +1,113 @@
+// Perlin Noise Pseudocode
+// Source: DynamicDungeon.Core/Algorithms/PerlinNoise.cs
+
+// Each biome controls the noise threshold (how much of the map becomes floor)
+// and the scale (how large or small the terrain features appear).
+// A higher threshold means more floor tiles. A smaller scale means bigger, smoother regions.
+biomeSettings = {
+    Dungeon: threshold = 0.55, scale = 2.0
+    Cave:    threshold = 0.50, scale = 1.5
+    Ruins:   threshold = 0.60, scale = 3.5
+}
+
+enemyCount = { Easy: 3, Medium: 6, Hard: 12 }
+
+
+function Generate(params):
+
+    look up threshold and scale for the chosen biome
+    create a random number generator using the seed
+    build a noise sampler using the seed (see PerlinSampler below)
+    create a blank map of the given width and height
+
+    pick two random offsets (offsetX, offsetY) to shift the noise sample position
+    // this ensures different seeds produce different regions of the noise field
+
+    for every cell in the map:
+        if the cell is on the border:
+            make it a Wall
+
+        otherwise:
+            normalise the cell position to a 0–1 range, then multiply by scale and add offsets
+            // this converts grid coordinates into a position within the noise field
+
+            sample the noise field at that position across 3 octaves:
+                octave 1 (broad shapes)  = Sample(position)          × 0.6
+                octave 2 (medium detail) = Sample(position × 2)      × 0.3
+                octave 3 (fine detail)   = Sample(position × 4)      × 0.1
+                combined value = sum of all three octaves
+            // layering octaves adds natural variation on top of the base terrain shape
+
+            if combined value is below the threshold:
+                make it a Floor
+            otherwise:
+                make it a Wall
+
+    place the spawn point and exit point on floor tiles
+    scatter enemies randomly across remaining floor tiles
+
+    return the finished map
+
+
+function FindFloorTile(map, scanFromBottomLeft):
+
+    if scanning from the bottom-left:
+        go through each row from top to bottom
+            go through each column from left to right
+                if the current cell is a floor tile, return its position
+
+    if scanning from the top-right:
+        go through each row from bottom to top
+            go through each column from right to left
+                if the current cell is a floor tile, return its position
+
+    if no floor tile is found, return a default corner position
+    // this is a fallback — if it triggers, the map will likely fail validation and regenerate
+
+
+function PlaceSpawnAndExit(map):
+
+    spawnPoint = FindFloorTile(map, scanFromBottomLeft: true)
+    exitPoint  = FindFloorTile(map, scanFromBottomLeft: false)
+
+    mark spawnPoint as the Spawn tile
+    mark exitPoint  as the Exit tile
+
+
+function PlaceEnemies(map, count):
+
+    repeat until [count] enemies are placed (or too many failed attempts):
+        pick a random interior cell (not on the border)
+        if it is a floor tile, place an enemy there
+
+
+function PerlinSampler(seed):
+
+    create a list of numbers 0 to 255 in order
+    shuffle the list randomly using the seed
+    // this is the permutation table — it maps grid corners to gradient directions
+    // using a seed means the same seed always produces the same map
+
+    duplicate the list so it is 512 entries long
+    // doubling avoids needing to wrap around when looking up neighbouring corners
+
+
+function Sample(x, y):
+
+    find which unit grid cell (x, y) falls inside
+    find where within that cell (x, y) sits as a fractional offset (0 to 1)
+
+    apply a fade curve to the fractional offsets to smooth the interpolation
+    // the fade curve (6t⁵ - 15t⁴ + 10t³) eases in and out, removing visible grid lines
+
+    look up a gradient direction for each of the 4 corners of the cell
+    // gradient directions are one of: (+x+y), (-x+y), (+x-y), (-x-y)
+
+    calculate the dot product of each corner's gradient with the distance to that corner
+
+    blend the 4 dot products together using the smoothed fractional offsets
+    // this interpolation is what makes the noise vary smoothly across space
+
+    remap the result from the range [-1, 1] to [0, 1]
+
+    return the final value

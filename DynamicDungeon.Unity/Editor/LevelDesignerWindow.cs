@@ -515,6 +515,24 @@ namespace DynamicDungeon.Unity.Editor
             if (!string.IsNullOrEmpty(dataPath))
                 data = AssetDatabase.LoadAssetAtPath<DungeonLevelData>(dataPath) ?? data;
 
+            // Preserve player/enemy prefabs and camera size from an existing scene so
+            // re-saving a level doesn't wipe the developer's manual assignments.
+            GameObject existingPlayerPrefab = null;
+            GameObject existingEnemyPrefab  = null;
+            float      existingCameraSize   = 15f;
+            if (File.Exists(Path.GetFullPath(scenePath)))
+            {
+                var existing = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Additive);
+                foreach (var root in existing.GetRootGameObjects())
+                {
+                    var bs = root.GetComponentInChildren<DungeonBootstrapper>();
+                    if (bs != null) { existingPlayerPrefab = bs.PlayerPrefab; existingEnemyPrefab = bs.EnemyPrefab; }
+                    var cam = root.GetComponentInChildren<Camera>();
+                    if (cam != null) existingCameraSize = cam.orthographicSize;
+                }
+                EditorSceneManager.CloseScene(existing, true);
+            }
+
             // Unity blocks NewScene(Additive) if any loaded scene is untitled (no path).
             // Instead of destroying the user's working scene with NewScene(Single), we give
             // every untitled scene a real path by saving it to a workspace file. This keeps
@@ -533,6 +551,15 @@ namespace DynamicDungeon.Unity.Editor
             }
 
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+
+            // Camera
+            var cameraObj = new GameObject("Main Camera");
+            cameraObj.tag = "MainCamera";
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(cameraObj, scene);
+            var cam2d = cameraObj.AddComponent<Camera>();
+            cam2d.orthographic     = true;
+            cam2d.orthographicSize = existingCameraSize;
+            cameraObj.transform.position = new Vector3(data.Width / 2f, data.Height / 2f, -10f);
 
             // Grid → Tilemap
             var gridObj = new GameObject("Grid");
@@ -573,7 +600,8 @@ namespace DynamicDungeon.Unity.Editor
             bootstrapper.DungeonGenerator = generator;
             bootstrapper.LevelData        = data;
             bootstrapper.NextSceneName    = BuildNextSceneName(index);
-            // PlayerPrefab / EnemyPrefab left null — developer fills in
+            bootstrapper.PlayerPrefab     = existingPlayerPrefab;
+            bootstrapper.EnemyPrefab      = existingEnemyPrefab;
 
             EditorSceneManager.SaveScene(scene, scenePath);
             // Re-fetch the handle by path: SaveScene with a new path can invalidate

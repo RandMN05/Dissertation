@@ -1,0 +1,101 @@
+// Cellular Automata Pseudocode
+
+// Each biome controls how densely packed with walls the map starts,
+// and how many times it is smoothed into organic shapes.
+biomeSettings = {
+    Dungeon: fillPercent = 45, smoothingPasses = 5
+    Cave:    fillPercent = 46, smoothingPasses = 5
+    Ruins:   fillPercent = 38, smoothingPasses = 6
+}
+
+enemyCount = { Easy: 3, Medium: 6, Hard: 12 }
+
+
+function Generate(params):
+
+    look up fillPercent and smoothingPasses for the chosen biome
+    create a random number generator using the seed
+    create a blank map of the given width and height
+
+    randomly fill the map with walls and floors based on fillPercent
+
+    smooth the map [smoothingPasses] times to form organic cave shapes
+
+    place the spawn point and exit point on floor tiles
+    scatter enemies randomly across remaining floor tiles
+
+    return the finished map
+
+
+function RandomFill(map, fillPercent):
+
+    for every cell in the map:
+        if the cell is on the border of the map:
+            make it a Wall  // keeps the map enclosed
+        otherwise:
+            roll a random number between 0 and 100
+            if the roll is below fillPercent, make it a Wall
+            otherwise make it a Floor
+
+
+function Smooth(map):
+
+    create a blank copy of the map to write results into
+
+    for every cell in the map:
+        count how many of its 8 surrounding neighbours are walls
+
+        if 5 or more neighbours are walls:
+            mark the cell as Wall in the copy   // it is surrounded, so solidify it
+        else if 2 or fewer neighbours are walls:
+            mark the cell as Floor in the copy  // it is isolated, so open it up
+        otherwise:
+            keep the cell as it currently is    // borderline — leave it unchanged
+
+    replace the map with the copy
+    // using a copy means all cells are judged on the same snapshot,
+    // not influenced by cells already changed this pass
+
+
+function CountWallNeighbours(map, cell):
+
+    count = 0
+
+    for each of the 8 cells surrounding this cell:
+        skip the centre cell itself
+        if the neighbour is outside the map boundary, count it as a wall
+        if the neighbour is a wall, add 1 to count
+
+    return count
+
+
+function FindFloorTile(map, scanFromBottomLeft):
+
+    if scanning from the bottom-left:
+        go through each row from top to bottom
+            go through each column from left to right
+                if the current cell is a floor tile, return its position
+
+    if scanning from the top-right:
+        go through each row from bottom to top
+            go through each column from right to left
+                if the current cell is a floor tile, return its position
+
+    if no floor tile is found, return a default corner position
+    // this is a fallback — if it triggers, the map will likely fail validation and regenerate
+
+
+function PlaceSpawnAndExit(map):
+
+    spawnPoint = FindFloorTile(map, scanFromBottomLeft: true)
+    exitPoint  = FindFloorTile(map, scanFromBottomLeft: false)
+
+    mark spawnPoint as the Spawn tile
+    mark exitPoint  as the Exit tile
+
+
+function PlaceEnemies(map, count):
+
+    repeat until [count] enemies are placed (or too many failed attempts):
+        pick a random interior cell (not on the border)
+        if it is a floor tile, place an enemy there

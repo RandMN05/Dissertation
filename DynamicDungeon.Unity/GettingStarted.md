@@ -37,16 +37,14 @@ You do not need to build anything. The compiled Core library (`DynamicDungeon.Co
 
 ## Step 3 — Create Tile Sprites
 
-The generator needs a sprite for each tile type. If you already have tile assets, skip ahead.
+The generator needs a Unity Tile asset for each of the five tile types: `WallTile`, `FloorTile`, `SpawnTile`, `ExitTile`, `EnemyTile`. Once you have sprites imported into your project:
 
-**Quickest option — use Unity's built-in solid colour tiles:**
-
-1. In your Project window, create a folder `Assets/Tiles`.
-2. Right-click → **Create → 2D → Tiles → Tile**.
+1. In the Project window, create a folder `Assets/Tiles`.
+2. Right-click inside it → **Create → 2D → Tiles → Tile**.
 3. Create five tiles and name them: `WallTile`, `FloorTile`, `SpawnTile`, `ExitTile`, `EnemyTile`.
-4. Select each tile asset and assign a **Sprite** to it. For testing, use any solid-colour sprite (Unity's default white square works — just tint it differently per tile in the tile's colour field).
+4. Select each tile asset and drag your sprite into the **Sprite** field in the Inspector.
 
-> Tip: Wall = dark grey, Floor = light grey, Spawn = green, Exit = yellow, Enemy = red is a readable colour scheme for testing.
+> **Important:** Select your **Wall tile** and set its **Collider Type** to **Sprite**. Set all other tiles (Floor, Spawn, Exit, Enemy) to **None**. This ensures physics colliders only generate on wall tiles — see Step 9 for the full wall collision setup.
 
 ---
 
@@ -137,28 +135,30 @@ The package includes two reference scripts: `PlayerController` and `EnemyControl
 
 ### Create a Player Prefab
 
-1. Create a new **2D Sprite** GameObject (`GameObject → 2D Object → Sprite`).
-2. Add these components:
-   - **Rigidbody2D** — set Gravity Scale to `0`, enable Freeze Rotation Z
-   - **CircleCollider2D**
-   - **PlayerController** (from the DynamicDungeon package)
-3. Set its **Tag** to `Player`.
-4. Drag it into your `Assets/` folder to make it a prefab.
+1. In the Hierarchy, right-click → **Create Empty**. Name it `Player`.
+2. With it selected, click **Add Component** in the Inspector and add:
+   - **Sprite Renderer** — in the Sprite field, click the small circle on the right and pick your player sprite, or drag a sprite from the Project window directly onto the field. Under **Additional Settings**, set **Order in Layer** to `1` so the player renders above the tilemap.
+   - **Rigidbody 2D** — set **Gravity Scale** to `0`, tick **Freeze Rotation Z** under Constraints.
+   - **Circle Collider 2D**
+   - **Player Controller** (search for it in the Add Component menu)
+3. Set the **Tag** dropdown at the top of the Inspector to `Player`.
+4. Drag the GameObject from the Hierarchy into your `Assets/` folder to save it as a prefab. Delete the scene copy.
 
 **PlayerController settings:**
 
 | Field | Default | Description |
 |---|---|---|
-| `Speed` | `3` | Movement speed in units per second. WASD / arrow keys. |
+| `Speed` | `3` | Movement speed in units per second. WASD and arrow keys. |
 
 ### Create an Enemy Prefab
 
-1. Create another **2D Sprite** GameObject.
-2. Add these components:
-   - **Rigidbody2D** — set Gravity Scale to `0`, enable Freeze Rotation Z
-   - **CircleCollider2D**
-   - **EnemyController** (from the DynamicDungeon package)
-3. Drag into `Assets/` to make it a prefab.
+1. In the Hierarchy, right-click → **Create Empty**. Name it `Enemy`.
+2. Add the following components:
+   - **Sprite Renderer** — assign your enemy sprite the same way as the player. Set **Order in Layer** to `1`.
+   - **Rigidbody 2D** — set **Gravity Scale** to `0`, tick **Freeze Rotation Z**.
+   - **Circle Collider 2D**
+   - **Enemy Controller** (from the Add Component menu)
+3. Drag the GameObject into `Assets/` to save it as a prefab. Delete the scene copy.
 
 **EnemyController settings:**
 
@@ -166,17 +166,20 @@ The package includes two reference scripts: `PlayerController` and `EnemyControl
 |---|---|---|
 | `Speed` | `1.5` | Chase speed. The enemy moves directly toward the player every frame. |
 
-### Wire the Prefabs
+### Attach the Prefabs to the Bootstrapper
 
-Open your level scene and select the `DungeonBootstrapper` GameObject. In the Inspector:
+1. Open your level scene.
+2. Select the **DungeonBootstrapper** GameObject in the Hierarchy.
+3. Drag your **Player prefab** from the Project window into the **Player Prefab** slot in the Inspector.
+4. Drag your **Enemy prefab** into the **Enemy Prefab** slot.
 
-| Field | Assign |
+The Bootstrapper spawns the player at the spawn point and one enemy at every enemy marker automatically when the scene loads.
+
+| Field | Description |
 |---|---|
-| **Player Prefab** | Your player prefab |
-| **Enemy Prefab** | Your enemy prefab |
-| **Next Scene Name** | The scene name of the next level (leave empty on the final level) |
+| **Next Scene Name** | Scene name of the next level — leave empty on the final level |
 | **Win Distance** | How close the player must be to the exit to win (default `0.6`) |
-| **Lose Distance** | How close an enemy must be to the player to trigger game over (default `0.4`) |
+| **Lose Distance** | How close an enemy must be to trigger game over (default `0.4`) |
 
 ---
 

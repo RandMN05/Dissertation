@@ -30,7 +30,8 @@ Three generation algorithms, three biomes, three difficulty levels, A\* pathfind
 10. [Worked Examples](#10-worked-examples)
 11. [Wall Collisions](#11-wall-collisions)
 12. [Level Designer Window Reference](#12-level-designer-window-reference)
-13. [Troubleshooting](#13-troubleshooting)
+13. [Common Misunderstandings](#13-common-misunderstandings)
+14. [Troubleshooting](#14-troubleshooting)
 
 ---
 
@@ -82,16 +83,16 @@ Unity will import the package. You should see **Dynamic Dungeon Generator** appe
 
 ## 4. Create Tile Sprites
 
-The generator needs a Unity Tile asset for each of the five tile types. If you already have tile assets, skip this section.
+The generator needs a Unity Tile asset for each of the five tile types: `WallTile`, `FloorTile`, `SpawnTile`, `ExitTile`, `EnemyTile`.
 
-**Quickest option — Unity's built-in solid colour tiles:**
+Once you have sprite assets imported into your project, create a tile for each:
 
 1. In the Project window, create a folder `Assets/Tiles`.
-2. Right-click → **Create → 2D → Tiles → Tile**.
-3. Create five tiles and name them: `WallTile`, `FloorTile`, `SpawnTile`, `ExitTile`, `EnemyTile`.
-4. Select each tile asset and assign a **Sprite** to it. Unity's default white square works — tint each one a different colour in the tile's **Color** field.
+2. Right-click inside it → **Create → 2D → Tiles → Tile**.
+3. Name each tile accordingly (`WallTile`, `FloorTile`, etc.).
+4. Select each tile asset and drag your sprite into the **Sprite** field in the Inspector.
 
-> Suggested colour scheme for testing: Wall = dark grey, Floor = light grey, Spawn = green, Exit = yellow, Enemy = red.
+> **Wall collision:** Once your tiles are created, set the **Collider Type** on the Wall tile to **Sprite**, and set all other tiles (Floor, Spawn, Exit, Enemy) to **None**. This ensures physics colliders are only generated for wall tiles. See [Section 11 — Wall Collisions](#11-wall-collisions).
 
 ---
 
@@ -196,40 +197,53 @@ The package includes two reference scripts as starting points. You are not requi
 
 ### PlayerController
 
-Attach to your player prefab. Requires `Rigidbody2D` and `CircleCollider2D`.
-
 **To create a player prefab:**
-1. `GameObject → 2D Object → Sprite`.
-2. Add **Rigidbody2D** — set Gravity Scale to `0`, enable **Freeze Rotation Z**.
-3. Add **CircleCollider2D**.
-4. Add **PlayerController**.
-5. Set the GameObject's **Tag** to `Player`.
-6. Drag into `Assets/` to save as a prefab.
+
+1. In the Hierarchy, right-click → **Create Empty**. Name it `Player`.
+2. With the GameObject selected, in the Inspector click **Add Component**:
+   - Add **Sprite Renderer** — in the Sprite field, click the small circle on the right and pick your player sprite, or drag a sprite from the Project window directly onto the field. Set **Order in Layer** to `1` (so the player renders above the tilemap, which is at `0`). Make sure **Sorting Layer** is **Default**.
+   - Add **Rigidbody 2D** — set **Gravity Scale** to `0`, tick **Freeze Rotation Z** under Constraints.
+   - Add **Circle Collider 2D**.
+   - Add **Player Controller** (search for it in the Add Component menu).
+3. Set the GameObject's **Tag** to `Player` using the Tag dropdown at the top of the Inspector.
+4. Drag the GameObject from the Hierarchy into your `Assets/` folder in the Project window to save it as a prefab. Delete the copy from the scene.
 
 **PlayerController fields:**
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `Speed` | `float` | `3` | Movement speed in units per second. Reads WASD / arrow keys via `Input.GetAxisRaw`. |
+| `Speed` | `float` | `3` | Movement speed in units per second. WASD and arrow keys. |
 
 ---
 
 ### EnemyController
 
-Attach to your enemy prefab. Requires `Rigidbody2D` and `CircleCollider2D`.
-
 **To create an enemy prefab:**
-1. `GameObject → 2D Object → Sprite`.
-2. Add **Rigidbody2D** — set Gravity Scale to `0`, enable **Freeze Rotation Z**.
-3. Add **CircleCollider2D**.
-4. Add **EnemyController**.
-5. Drag into `Assets/` to save as a prefab.
+
+1. In the Hierarchy, right-click → **Create Empty**. Name it `Enemy`.
+2. Add the following components:
+   - **Sprite Renderer** — assign your enemy sprite the same way as the player. Set **Order in Layer** to `1`.
+   - **Rigidbody 2D** — set **Gravity Scale** to `0`, tick **Freeze Rotation Z**.
+   - **Circle Collider 2D**.
+   - **Enemy Controller** (from the Add Component menu).
+3. Drag the GameObject into `Assets/` to save it as a prefab. Delete the scene copy.
 
 **EnemyController fields:**
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `Speed` | `float` | `1.5` | Chase speed. The enemy moves directly toward the Player tag every `FixedUpdate`. |
+
+---
+
+### Attaching prefabs to the Bootstrapper
+
+1. Open your level scene.
+2. Select the **DungeonBootstrapper** GameObject in the Hierarchy.
+3. In the Inspector, drag your **Player prefab** from the Project window into the **Player Prefab** slot.
+4. Drag your **Enemy prefab** into the **Enemy Prefab** slot.
+
+The Bootstrapper spawns the player at `map.SpawnWorld` and one enemy per `map.EnemyWorldPositions` entry automatically when the scene loads.
 
 ---
 
@@ -637,7 +651,14 @@ The scene is added to Build Settings. Open it and assign your **Player Prefab** 
 
 ---
 
-## 13. Troubleshooting
+## 13. Common Misunderstandings
+
+**The Scene view preview shows a different map than my saved level**
+This is expected behaviour, not a bug. When you click **Generate Preview**, the generator writes tiles directly onto the Tilemap in memory, and the Scene view always renders whatever is currently in memory — even if you have not saved. When you enter Play Mode, Unity reloads the scene from the last saved `.unity` file on disk, so it shows the map from your last save. If the Scene view is displaying an unsaved generation you do not want, press **Ctrl+Z** to undo it and the Tilemap will revert to the saved state.
+
+---
+
+## 14. Troubleshooting
 
 **Map generates but nothing is visible**
 Assign all five tile sprites on `DungeonGeneratorComponent`. A missing `WallTile` or `FloorTile` leaves those cells blank — no error is thrown.
