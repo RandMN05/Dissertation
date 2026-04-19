@@ -83,7 +83,53 @@ Unity will import the package. You should see **Dynamic Dungeon Generator** appe
 
 ## 4. Create Tile Sprites
 
+<<<<<<< HEAD
 The generator needs a Unity Tile asset for each of the five tile types: `WallTile`, `FloorTile`, `SpawnTile`, `ExitTile`, `EnemyTile`.
+=======
+## to use and import your own tiles:
+
+### first choose a tileset from the market a good free website to download sprites is: https://itch.io/game-assets/free/tag-sprites
+
+<img width="1092" height="383" alt="image" src="https://github.com/user-attachments/assets/b3cb8233-a92f-4fc7-9f49-ff5a133d4343" /> 
+
+### download it and add it into a unity folder of your choice , in our example we added it onto the Assets folder:
+
+<img width="1150" height="678" alt="image" src="https://github.com/user-attachments/assets/73f2461f-ee0b-4e1c-9a53-787c7ee896cc" />
+
+### then you need to create or use a tile pallet through windows 2D tile pallet in this example my tile pallet I created was MapSprites
+<img width="622" height="536" alt="image" src="https://github.com/user-attachments/assets/557b0710-767c-4086-b3bf-40df3fd27242" />
+
+<img width="863" height="643" alt="image" src="https://github.com/user-attachments/assets/ef581cdc-9689-43a9-bdfb-118918fe3590" />
+
+### then drag your sprite onto the tile pallet and save it in a location of choice(tile of choice is shown at the bottom as Grass 0 then dragged onto tile pallet), in this example its saved to a seperate tiles folder in the unity project 
+<img width="1337" height="809" alt="image" src="https://github.com/user-attachments/assets/bcaf00de-45fa-46a3-99fb-07f425d7909d" />
+
+### a common problem is the sprite of choice might not be the size of the actual tilemap tile boxes
+
+<img width="404" height="292" alt="image" src="https://github.com/user-attachments/assets/365fb630-cd70-434a-9c98-d3f68bd4a0ba" />
+<img width="639" height="520" alt="image" src="https://github.com/user-attachments/assets/8c398089-150b-47bd-bac8-fa678290cc52" />
+
+### to fix this issue go onto the original tileset /tile and change its pixels per unit in the inspector to fit the size of the boxes or size of choice and press apply in the inspector
+
+<img width="563" height="957" alt="image" src="https://github.com/user-attachments/assets/37f91f7f-8c27-49df-8a87-905d58252aad" />
+<img width="829" height="310" alt="image" src="https://github.com/user-attachments/assets/3c385779-0aa4-4f3e-9269-fae155f48b2f" />
+as we can see here that is the size we wanted for this example 
+
+### now when editing in your level loader all the tile sprites you created can be easily chosed from there 
+
+<img width="1056" height="379" alt="image" src="https://github.com/user-attachments/assets/f58920cd-349e-4e03-a494-497d84469bd4" />
+
+
+
+
+
+
+
+
+then you can open any tile set in the folder you chose and ensure to turn it into a 
+
+The generator needs a Unity Tile asset for each of the five tile types. If you already have tile assets, skip this section.
+>>>>>>> 39b387681029c0b5cf063053e56d3bc4bce315d8
 
 Once you have sprite assets imported into your project, create a tile for each:
 
