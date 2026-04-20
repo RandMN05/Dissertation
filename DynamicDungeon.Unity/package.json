@@ -8,5 +8,12 @@
     "name": "Dissertation Project"
   },
   "keywords": ["procedural", "generation", "dungeon", "tilemap"],
-  "dependencies": {}
+  "dependencies": {},
+  "samples": [
+    {
+      "displayName": "Default Tile Set",
+      "description": "16x16 pixel-art tiles (Wall, Floor, Spawn, Exit, Enemy) with ready-to-use Tile assets. Import, then drag the .asset files from Tiles/ into the DungeonGeneratorComponent Inspector slots.",
+      "path": "Samples~/Default Tile Set"
+    }
+  ]
 }
